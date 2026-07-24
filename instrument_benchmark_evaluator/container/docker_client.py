@@ -5,7 +5,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import Callable, Sequence
 
-from .errors import ContainerInfrastructureError
+from .errors import ContainerCommandTimeout, ContainerInfrastructureError
 
 
 @dataclass(frozen=True)
@@ -49,7 +49,7 @@ class DockerClient:
                 f"Docker executable not found: {self.executable}"
             ) from exc
         except subprocess.TimeoutExpired as exc:
-            raise ContainerInfrastructureError(
+            raise ContainerCommandTimeout(
                 f"Docker command timed out: {' '.join(argv)}"
             ) from exc
         if check and result.returncode != 0:

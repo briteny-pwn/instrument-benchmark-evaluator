@@ -9,3 +9,6 @@ class ImagePolicyError(ContainerContractError):
 class ContainerInfrastructureError(RuntimeError):
     """Docker or host container infrastructure failed."""
 
+
+class ContainerCommandTimeout(ContainerInfrastructureError):
+    """A bounded Docker command exceeded its deadline."""
