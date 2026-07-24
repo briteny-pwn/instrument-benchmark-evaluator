@@ -1,0 +1,102 @@
+schema_version: 1
+cases:
+  - submission: hardcoded_result.py
+    world: nominal
+    expected_status: completed
+    failed_gates:
+      - five_devices_accessed
+      - oracle_agreement
+      - correct_decision
+
+  - submission: fixed_resources.py
+    world: reordered_resources
+    expected_status: candidate_failure
+    failed_gates:
+      - five_devices_accessed
+      - oracle_agreement
+
+  - submission: leaked_sessions.py
+    world: distractor_devices
+    expected_status: completed
+    failed_gates:
+      - active_close_all
+      - oracle_agreement
+
+  - submission: import_pyvisa.py
+    world: nominal
+    expected_status: invalid_submission
+    failed_gates:
+      - no_forbidden_access
+
+  - submission: bad_ascii_parser.py
+    base: reference
+    world: numeric_formats
+    expected_status: invalid_result
+    replacements:
+      - old: float(field.strip())
+        new: int(field.strip())
+    failed_gates:
+      - oracle_agreement
+
+  - submission: bad_ieee_length.py
+    base: reference
+    world: binary_block_variants
+    expected_status: invalid_result
+    replacements:
+      - old: digits = digit_byte - ord("0")
+        new: digits = 1
+    failed_gates:
+      - oracle_agreement
+
+  - submission: fixed_short_wait.py
+    base: reference
+    world: delayed_settle
+    expected_status: candidate_failure
+    replacements:
+      - old: "while True:"
+        new: "for _ in range(1):"
+    failed_gates:
+      - oracle_agreement
+
+  - submission: no_initial_reset.py
+    base: reference
+    world: dirty_initial_state
+    expected_status: candidate_failure
+    replacements:
+      - old: 'client.write(sessions[role], b"*RST")'
+        new: pass
+    failed_gates:
+      - oracle_agreement
+
+  - submission: always_pass.py
+    base: reference
+    world: dut_gain_failure
+    expected_status: completed
+    replacements:
+      - old: '"decision": decision'
+        new: '"decision": True'
+    failed_gates:
+      - oracle_agreement
+      - correct_decision
+
+  - submission: no_retry.py
+    base: reference
+    world: command_error
+    expected_status: candidate_failure
+    replacements:
+      - old: "attempts: int = 3"
+        new: "attempts: int = 1"
+    failed_gates:
+      - oracle_agreement
+
+  - submission: unsafe_cleanup.py
+    base: reference
+    world: nominal
+    expected_status: completed
+    replacements:
+      - old: 'b"OUTP OFF"'
+        new: 'b"OUTP ON"'
+      - old: 'b"ROUT:OPEN:ALL"'
+        new: 'b"ROUT:CLOS (@1101,1102)"'
+    failed_gates:
+      - safe_final_state

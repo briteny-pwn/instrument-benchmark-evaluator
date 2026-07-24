@@ -1,0 +1,5 @@
+world_id: numeric_formats
+seed: 104
+overrides:
+  dmm_format: scientific
+  dmm_noise_v: 0.0015

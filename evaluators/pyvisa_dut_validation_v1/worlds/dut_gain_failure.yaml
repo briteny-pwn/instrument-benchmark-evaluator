@@ -1,0 +1,5 @@
+world_id: dut_gain_failure
+seed: 108
+overrides:
+  gain: 1.75
+  offset_v: 0.01

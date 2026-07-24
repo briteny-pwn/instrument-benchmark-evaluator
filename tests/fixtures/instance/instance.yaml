@@ -1,0 +1,18 @@
+schema_version: 1
+instance_id: pyvisa_dut_validation_v1
+evaluator:
+  id: pyvisa_dut_validation_v1
+  protocol_version: 1
+visible_files:
+  starter/gateway_client.py: test-fixture
+submission:
+  filename: solution.py
+  entrypoint: run_experiment
+  result_filename: result.json
+runtime:
+  forbidden_import_roots:
+    - pyvisa
+    - pyvisa_sim
+    - qcodes
+    - pymeasure
+

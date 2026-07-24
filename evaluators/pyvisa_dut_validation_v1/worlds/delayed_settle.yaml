@@ -1,0 +1,4 @@
+world_id: delayed_settle
+seed: 106
+overrides:
+  settle_ms: 650

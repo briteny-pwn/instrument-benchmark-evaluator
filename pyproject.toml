@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "instrument-benchmark-evaluator"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+  "PyYAML==6.0.3",
+  "PyVISA==1.16.2",
+  "PyVISA-sim==0.7.1",
+]
+
+[project.scripts]
+instrument-evaluator = "instrument_benchmark_evaluator.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["instrument_benchmark_evaluator*", "evaluators*"]
+
+[tool.setuptools.package-data]
+"evaluators.pyvisa_dut_validation_v1" = [
+  "adversarial_matrix.yaml",
+  "simulator/*.yaml",
+  "worlds/*.yaml",
+]
+

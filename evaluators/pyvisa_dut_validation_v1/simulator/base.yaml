@@ -1,0 +1,59 @@
+spec: "1.1"
+
+devices:
+  psu:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "IAB,Virtual-E36312A,PSU001,1.0"
+
+  switch:
+    eom:
+      GPIB INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "IAB,Virtual-34980A,SW001,1.0"
+
+  awg:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "IAB,Virtual-33512B,AWG001,1.0"
+
+  scope:
+    eom:
+      TCPIP INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "IAB,Virtual-MSO44,SCOPE001,1.0"
+
+  dmm:
+    eom:
+      USB INSTR:
+        q: "\n"
+        r: "\n"
+    dialogues:
+      - q: "*IDN?"
+        r: "IAB,Virtual-DMM7510,DMM001,1.0"
+
+resources:
+  TCPIP0::192.0.2.10::inst0::INSTR:
+    device: psu
+  GPIB0::9::INSTR:
+    device: switch
+  USB0::0x0957::0x2C07::MY000001::INSTR:
+    device: awg
+  TCPIP0::192.0.2.20::inst0::INSTR:
+    device: scope
+  USB0::0x05E6::0x7510::MY000002::INSTR:
+    device: dmm

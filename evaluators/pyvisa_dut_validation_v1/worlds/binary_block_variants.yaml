@@ -1,0 +1,5 @@
+world_id: binary_block_variants
+seed: 105
+overrides:
+  binary_length_digits: 3
+  scope_noise_v: 0.003

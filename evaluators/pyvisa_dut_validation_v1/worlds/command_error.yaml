@@ -1,0 +1,6 @@
+world_id: command_error
+seed: 109
+overrides:
+  transient_error_role: dmm
+  transient_error_command: "*IDN?"
+  transient_error_count: 1

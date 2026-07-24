@@ -1,0 +1,8 @@
+world_id: distractor_devices
+seed: 103
+overrides:
+  distractors:
+    - resource: TCPIP0::203.0.113.31::inst0::INSTR
+      identity: IAB,Virtual-TemperatureLogger,DIST001,1.0
+    - resource: GPIB0::3::INSTR
+      identity: IAB,Virtual-FrequencyCounter,DIST002,1.0

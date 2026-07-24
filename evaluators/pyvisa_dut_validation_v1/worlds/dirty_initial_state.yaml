@@ -1,0 +1,7 @@
+world_id: dirty_initial_state
+seed: 107
+overrides:
+  initial_psu_output: true
+  initial_awg_output: true
+  initial_closed_routes:
+    - "1199"

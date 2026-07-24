@@ -1,0 +1,9 @@
+world_id: reordered_resources
+seed: 102
+overrides:
+  resource_map:
+    scope: USB0::0x0699::0x0522::SC102::0::INSTR
+    dmm: GPIB0::22::INSTR
+    switch: TCPIP0::198.51.100.9::inst0::INSTR
+    awg: GPIB1::7::INSTR
+    psu: USB0::0x0957::0x0F07::PS102::0::INSTR
