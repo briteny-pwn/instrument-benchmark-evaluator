@@ -57,6 +57,7 @@ def run_container(
                 gateway_socket=gateway_socket,
                 runner_dir=runner_dir,
                 name=name,
+                run_id=run_id,
             )
         )
         container_id = created.stdout.strip()
@@ -148,12 +149,15 @@ def _create_arguments(
     gateway_socket: Path,
     runner_dir: Path,
     name: str,
+    run_id: str,
 ) -> list[str]:
     solution = f"{contract.workdir}/solution.py"
     returned = str(Path(contract.output_path).with_name("return.json"))
     return [
         "create",
         f"--name={name}",
+        "--label=iab.managed=true",
+        f"--label=iab.run={run_id}",
         "--network=none",
         "--read-only",
         "--cap-drop=ALL",

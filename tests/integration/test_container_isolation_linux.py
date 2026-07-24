@@ -18,7 +18,16 @@ from instrument_benchmark_evaluator.container.runner import run_container
 
 
 ROOT = Path(__file__).resolve().parents[2]
-INSTANCE = ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
+_default_instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v1"
+_worktree_instance = (
+    ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
+)
+INSTANCE = Path(
+    os.environ.get(
+        "IAB_INSTANCE_ROOT",
+        _default_instance if _default_instance.is_dir() else _worktree_instance,
+    )
+)
 CANDIDATES = ROOT / "tests" / "fixtures" / "candidates"
 RUNNER = ROOT / "instrument_benchmark_evaluator"
 

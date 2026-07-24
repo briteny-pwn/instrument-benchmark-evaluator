@@ -16,7 +16,16 @@ from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
 
 
 ROOT = Path(__file__).resolve().parents[2]
-INSTANCE = ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
+_default_instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v1"
+_worktree_instance = (
+    ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
+)
+INSTANCE = Path(
+    os.environ.get(
+        "IAB_INSTANCE_ROOT",
+        _default_instance if _default_instance.is_dir() else _worktree_instance,
+    )
+)
 EVALUATOR = ROOT / "evaluators" / "pyvisa_dut_validation_v1"
 REFERENCE = EVALUATOR / "reference" / "solution.py"
 FIXED = (
