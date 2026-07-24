@@ -1,0 +1,9 @@
+schema_version: 1
+container_protocol_version: 1
+platform: linux/amd64
+base_image: python:3.11.9-slim-bookworm@sha256:2856e6af199e8128161abd320575eb9b341f3b76f017b5d0c9cd364f60d8a050
+dockerfile_sha256: 1abbd76ab1b189be3555ea65726908856eb6dfca1807ade2112f16fb4c347e1d
+built_image:
+  reference: iab/pyvisa-dut-validation:v1
+  digest: sha256:41ef66a648e0ae32e9585b3dff217c7c13f1841197ea34ede2e32f9e415dea14
+runtime_user: "10001:10001"

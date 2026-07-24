@@ -15,4 +15,25 @@ runtime:
     - pyvisa_sim
     - qcodes
     - pymeasure
-
+container:
+  protocol_version: 1
+  dockerfile: Dockerfile
+  lock_file: image.lock.yaml
+  context_files:
+    Dockerfile: 1abbd76ab1b189be3555ea65726908856eb6dfca1807ade2112f16fb4c347e1d
+    image.lock.yaml: e411c3f1e0a8f1da720bd39c02bb808eaf775204bb39c6e4bae030e52ca60165
+  platform: linux/amd64
+  user: "10001:10001"
+  workdir: /workspace
+  entrypoint:
+    - python
+    - /runner/bootstrap.py
+  gateway_path: /run/iab/gateway.sock
+  output_path: /output/result.json
+  limits:
+    cpus: 1.0
+    memory_mb: 512
+    pids: 64
+    timeout_seconds: 30
+    stdout_bytes: 1048576
+    stderr_bytes: 1048576

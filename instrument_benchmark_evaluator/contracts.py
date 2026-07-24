@@ -8,6 +8,8 @@ from typing import Any
 import yaml
 
 from . import EVALUATOR_ID, PROTOCOL_VERSION
+from .container.contracts import ContainerContract, load_container_contract
+from .container.errors import ContainerContractError
 
 
 class ContractError(ValueError):
@@ -34,6 +36,7 @@ class InstanceSettings:
     submission_filename: str
     result_filename: str
     forbidden_import_roots: tuple[str, ...]
+    container: ContainerContract
 
 
 @dataclass(frozen=True)
@@ -107,12 +110,17 @@ def load_instance_settings(instance_path: Path) -> InstanceSettings:
     runtime = value.get("runtime")
     if not isinstance(submission, dict) or not isinstance(runtime, dict):
         raise ContractError("instance submission/runtime is invalid")
+    try:
+        container = load_container_contract(instance_path)
+    except ContainerContractError as exc:
+        raise ContractError(f"invalid instance container contract: {exc}") from exc
     return InstanceSettings(
         instance_id=EVALUATOR_ID,
         visible_files=tuple(visible),
         submission_filename=str(submission["filename"]),
         result_filename=str(submission["result_filename"]),
         forbidden_import_roots=tuple(runtime["forbidden_import_roots"]),
+        container=container,
     )
 
 
