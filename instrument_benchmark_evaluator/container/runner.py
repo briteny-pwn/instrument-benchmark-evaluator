@@ -233,9 +233,31 @@ def _validate_runtime(
         "capability drop": "ALL" in evidence.cap_drop,
         "no-new-privileges": "no-new-privileges" in evidence.security_options,
         "memory limit": evidence.memory_bytes == policy.memory_mb * 1024 * 1024,
+        "swap limit": evidence.memory_swap_bytes
+        == policy.memory_mb * 1024 * 1024,
         "CPU limit": evidence.nano_cpus == int(policy.cpus * 1_000_000_000),
         "PID limit": evidence.pids_limit == policy.pids,
         "image digest": evidence.image_digest == image_digest,
+        "log driver": evidence.log_driver == "none",
+        "nofile ulimit": "nofile:256:256" in evidence.ulimits,
+        "stop timeout": evidence.stop_timeout == 1,
+        "output tmpfs": any(
+            item.startswith("/output:") for item in evidence.tmpfs
+        ),
+        "temporary tmpfs": any(
+            item.startswith("/tmp:") for item in evidence.tmpfs
+        ),
+        "bind mount allowlist": {
+            mount.destination
+            for mount in evidence.mounts
+            if mount.mount_type == "bind"
+        }
+        == {contract.workdir, "/runner", "/run/iab"},
+        "read-only bind mounts": all(
+            not mount.writable
+            for mount in evidence.mounts
+            if mount.mount_type == "bind"
+        ),
     }
     failed = [name for name, passed in checks.items() if not passed]
     if failed:

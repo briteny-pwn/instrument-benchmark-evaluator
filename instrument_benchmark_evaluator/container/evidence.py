@@ -46,6 +46,11 @@ class ContainerEvidence:
     ipc_mode: str
     uts_mode: str
     mounts: tuple[MountEvidence, ...]
+    memory_swap_bytes: int = 0
+    log_driver: str = ""
+    ulimits: tuple[str, ...] = ()
+    stop_timeout: int = 0
+    tmpfs: tuple[str, ...] = ()
     cleanup_attempted: bool = False
     cleanup_succeeded: bool | None = None
     cleanup_error: str | None = None
@@ -68,6 +73,11 @@ class ContainerEvidence:
             "memory_bytes": self.memory_bytes,
             "nano_cpus": self.nano_cpus,
             "pids_limit": self.pids_limit,
+            "memory_swap_bytes": self.memory_swap_bytes,
+            "log_driver": self.log_driver,
+            "ulimits": list(self.ulimits),
+            "stop_timeout": self.stop_timeout,
+            "tmpfs": list(self.tmpfs),
             "pid_mode": self.pid_mode,
             "ipc_mode": self.ipc_mode,
             "uts_mode": self.uts_mode,
@@ -107,6 +117,11 @@ def normalize_inspect(value: dict[str, Any]) -> ContainerEvidence:
         ipc_mode=_optional_text(host.get("IpcMode")),
         uts_mode=_optional_text(host.get("UTSMode")),
         mounts=mounts,
+        memory_swap_bytes=_integer(host, "MemorySwap"),
+        log_driver=_text(_mapping(host, "LogConfig"), "Type"),
+        ulimits=_ulimits(host.get("Ulimits", [])),
+        stop_timeout=_integer(config, "StopTimeout"),
+        tmpfs=_tmpfs(host.get("Tmpfs", {})),
     )
 
 
@@ -164,3 +179,25 @@ def _strings(value: Any, key: str) -> tuple[str, ...]:
     ):
         raise ContainerInfrastructureError(f"inspect {key} must be string list")
     return tuple(value)
+
+
+def _ulimits(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        raise ContainerInfrastructureError("inspect Ulimits must be a list")
+    result = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise ContainerInfrastructureError("inspect Ulimit must be an object")
+        result.append(
+            f"{_text(item, 'Name')}:{_integer(item, 'Soft')}:{_integer(item, 'Hard')}"
+        )
+    return tuple(result)
+
+
+def _tmpfs(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, dict) or not all(
+        isinstance(key, str) and isinstance(options, str)
+        for key, options in value.items()
+    ):
+        raise ContainerInfrastructureError("inspect Tmpfs must be a string mapping")
+    return tuple(f"{key}:{value[key]}" for key in sorted(value))

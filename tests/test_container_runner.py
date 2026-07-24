@@ -28,7 +28,7 @@ def inspect(exit_code: int = 0, *, oom: bool = False) -> dict:
         "Id": "container-1",
         "Image": "sha256:" + "1" * 64,
         "Created": "2026-07-24T00:00:00Z",
-        "Config": {"User": "10001:10001"},
+        "Config": {"User": "10001:10001", "StopTimeout": 1},
         "HostConfig": {
             "NetworkMode": "none",
             "ReadonlyRootfs": True,
@@ -37,6 +37,13 @@ def inspect(exit_code: int = 0, *, oom: bool = False) -> dict:
             "Memory": 536870912,
             "NanoCpus": 1000000000,
             "PidsLimit": 64,
+            "MemorySwap": 536870912,
+            "LogConfig": {"Type": "none"},
+            "Ulimits": [{"Name": "nofile", "Soft": 256, "Hard": 256}],
+            "Tmpfs": {
+                "/tmp": "rw,noexec,nosuid,nodev,size=64m",
+                "/output": "rw,nosuid,nodev,noexec,size=4194304",
+            },
             "PidMode": "",
             "IpcMode": "private",
             "UTSMode": "",
@@ -48,7 +55,29 @@ def inspect(exit_code: int = 0, *, oom: bool = False) -> dict:
             "StartedAt": "2026-07-24T00:00:01Z",
             "FinishedAt": "2026-07-24T00:00:02Z",
         },
-        "Mounts": [],
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/host/workspace",
+                "Destination": "/workspace",
+                "Mode": "ro",
+                "RW": False,
+            },
+            {
+                "Type": "bind",
+                "Source": "/host/runner",
+                "Destination": "/runner",
+                "Mode": "ro",
+                "RW": False,
+            },
+            {
+                "Type": "bind",
+                "Source": "/host/gateway",
+                "Destination": "/run/iab",
+                "Mode": "ro",
+                "RW": False,
+            },
+        ],
     }
 
 

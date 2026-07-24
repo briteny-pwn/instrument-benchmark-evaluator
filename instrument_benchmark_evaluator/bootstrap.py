@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import importlib.util
+import base64
 import json
 import os
 import socket
 import sys
+import threading
 import time
 import traceback
 from pathlib import Path
@@ -76,7 +78,15 @@ def _install_audit_boundary(
             if isinstance(address, str) and Path(address).resolve() == endpoint.resolve():
                 return
             raise PermissionError(f"network access denied: {address!r}")
-        if event in {"subprocess.Popen", "os.system", "ctypes.dlopen"}:
+        if event in {
+            "subprocess.Popen",
+            "os.system",
+            "ctypes.dlopen",
+            "os.fork",
+            "os.forkpty",
+            "os.kill",
+            "os.posix_spawn",
+        }:
             raise PermissionError(f"process/native access denied: {event}")
 
     sys.addaudithook(audit)
@@ -91,6 +101,12 @@ def main() -> int:
             file=sys.stderr,
         )
         return 2
+    if os.environ.get("IAB_CONTAINER_MODE") == "1":
+        return _supervise(paths)
+    return _candidate_main(paths)
+
+
+def _candidate_main(paths) -> int:
     _install_audit_boundary(paths.workspace, paths.output_root, paths.endpoint)
     sys.path.insert(0, str(paths.workspace))
     try:
@@ -119,9 +135,6 @@ def main() -> int:
             json.dumps(returned, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
         )
-        if os.environ.get("IAB_CONTAINER_MODE") == "1":
-            print("\n__IAB_BOOTSTRAP_COMPLETE_V1__", flush=True)
-            time.sleep(60)
         return 0
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"invalid result: {exc}", file=sys.stderr)
@@ -129,6 +142,64 @@ def main() -> int:
     except Exception:
         traceback.print_exc()
         return 1
+
+
+def _supervise(paths) -> int:
+    stdout_read, stdout_write = os.pipe()
+    stderr_read, stderr_write = os.pipe()
+    child = os.fork()
+    if child == 0:
+        os.close(stdout_read)
+        os.close(stderr_read)
+        os.dup2(stdout_write, 1)
+        os.dup2(stderr_write, 2)
+        os.close(stdout_write)
+        os.close(stderr_write)
+        os._exit(_candidate_main(paths))
+    os.close(stdout_write)
+    os.close(stderr_write)
+    pumps = (
+        threading.Thread(
+            target=_pump_candidate_log,
+            args=(stdout_read, sys.stdout.buffer, b"candidate-stdout-b64:"),
+        ),
+        threading.Thread(
+            target=_pump_candidate_log,
+            args=(stderr_read, sys.stderr.buffer, b"candidate-stderr-b64:"),
+        ),
+    )
+    for pump in pumps:
+        pump.start()
+    _, wait_status = os.waitpid(child, 0)
+    for pump in pumps:
+        pump.join()
+    exit_code = os.waitstatus_to_exitcode(wait_status)
+    if exit_code != 0:
+        return exit_code
+    try:
+        returned = json.loads(paths.returned.read_text(encoding="utf-8"))
+        written = json.loads(paths.output.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"invalid supervised artifacts: {exc}", file=sys.stderr)
+        return 3
+    if not isinstance(returned, dict) or returned != written:
+        print("invalid supervised artifacts: result mismatch", file=sys.stderr)
+        return 3
+    print("\n__IAB_BOOTSTRAP_COMPLETE_V1__", flush=True)
+    time.sleep(60)
+    return 0
+
+
+def _pump_candidate_log(descriptor: int, target, prefix: bytes) -> None:
+    try:
+        while True:
+            chunk = os.read(descriptor, 32768)
+            if not chunk:
+                break
+            target.write(prefix + base64.b64encode(chunk) + b"\n")
+            target.flush()
+    finally:
+        os.close(descriptor)
 
 
 if __name__ == "__main__":

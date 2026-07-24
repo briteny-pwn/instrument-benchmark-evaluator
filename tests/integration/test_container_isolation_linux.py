@@ -135,6 +135,11 @@ class LinuxContainerIsolationTests(unittest.TestCase):
         result = self._run("fill_output.py")
         self.assertEqual(result.status, "candidate_failure")
 
+    def test_candidate_cannot_forge_bootstrap_completion(self) -> None:
+        result = self._run("forge_marker.py")
+        self.assertEqual(result.status, "candidate_failure")
+        self.assertIsNone(result.result)
+
 
 if __name__ == "__main__":
     unittest.main()
