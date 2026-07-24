@@ -226,6 +226,8 @@ def _validate_runtime(
     policy: EffectiveContainerPolicy,
     image_digest: str,
 ) -> None:
+    tmpfs = _tmpfs_options(evidence.tmpfs)
+    output_size = max(policy.stdout_bytes, policy.stderr_bytes) * 4
     checks = {
         "network mode": evidence.network_mode == "none",
         "read-only rootfs": evidence.readonly_rootfs,
@@ -241,12 +243,23 @@ def _validate_runtime(
         "log driver": evidence.log_driver == "none",
         "nofile ulimit": "nofile:256:256" in evidence.ulimits,
         "stop timeout": evidence.stop_timeout == 1,
-        "output tmpfs": any(
-            item.startswith("/output:") for item in evidence.tmpfs
-        ),
-        "temporary tmpfs": any(
-            item.startswith("/tmp:") for item in evidence.tmpfs
-        ),
+        "output tmpfs": {
+            "rw",
+            "nosuid",
+            "nodev",
+            "noexec",
+            "uid=10001",
+            "gid=10001",
+            "mode=0770",
+            f"size={output_size}",
+        }.issubset(tmpfs.get("/output", set())),
+        "temporary tmpfs": {
+            "rw",
+            "nosuid",
+            "nodev",
+            "noexec",
+            "size=64m",
+        }.issubset(tmpfs.get("/tmp", set())),
         "bind mount allowlist": {
             mount.destination
             for mount in evidence.mounts
@@ -264,6 +277,16 @@ def _validate_runtime(
         raise ContainerInfrastructureError(
             "container runtime policy mismatch: " + ", ".join(failed)
         )
+
+
+def _tmpfs_options(values: tuple[str, ...]) -> dict[str, set[str]]:
+    result: dict[str, set[str]] = {}
+    for value in values:
+        destination, separator, options = value.partition(":")
+        if not separator:
+            continue
+        result[destination] = set(options.split(","))
+    return result
 
 
 _LIVE_COLLECTOR = r"""

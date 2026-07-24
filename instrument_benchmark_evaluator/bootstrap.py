@@ -85,6 +85,7 @@ def _install_audit_boundary(
             "os.fork",
             "os.forkpty",
             "os.kill",
+            "os.exec",
             "os.posix_spawn",
         }:
             raise PermissionError(f"process/native access denied: {event}")

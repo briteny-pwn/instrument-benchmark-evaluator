@@ -140,6 +140,11 @@ class LinuxContainerIsolationTests(unittest.TestCase):
         self.assertEqual(result.status, "candidate_failure")
         self.assertIsNone(result.result)
 
+    def test_candidate_cannot_exec_away_from_audit_supervisor(self) -> None:
+        result = self._run("exec_escape.py")
+        self.assertEqual(result.status, "candidate_failure")
+        self.assertIsNone(result.result)
+
 
 if __name__ == "__main__":
     unittest.main()

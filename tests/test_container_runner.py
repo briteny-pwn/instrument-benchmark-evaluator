@@ -42,7 +42,10 @@ def inspect(exit_code: int = 0, *, oom: bool = False) -> dict:
             "Ulimits": [{"Name": "nofile", "Soft": 256, "Hard": 256}],
             "Tmpfs": {
                 "/tmp": "rw,noexec,nosuid,nodev,size=64m",
-                "/output": "rw,nosuid,nodev,noexec,size=4194304",
+                "/output": (
+                    "rw,nosuid,nodev,noexec,uid=10001,gid=10001,"
+                    "mode=0770,size=4194304"
+                ),
             },
             "PidMode": "",
             "IpcMode": "private",
