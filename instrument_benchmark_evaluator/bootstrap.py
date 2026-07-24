@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -118,6 +119,9 @@ def main() -> int:
             json.dumps(returned, sort_keys=True, separators=(",", ":")),
             encoding="utf-8",
         )
+        if os.environ.get("IAB_CONTAINER_MODE") == "1":
+            print("\n__IAB_BOOTSTRAP_COMPLETE_V1__", flush=True)
+            time.sleep(60)
         return 0
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"invalid result: {exc}", file=sys.stderr)

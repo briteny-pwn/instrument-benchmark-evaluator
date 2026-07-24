@@ -35,6 +35,7 @@ jobs:
         working-directory: evaluator
         env:
           IAB_RUN_DOCKER_TESTS: "1"
+          IAB_CONTAINER_OWNER: evaluator-${{ github.run_id }}-${{ github.run_attempt }}
           IAB_INSTANCE_ROOT: ${{ github.workspace }}/instance/pyvisa_dut_validation_v1
         run: |
           python -m unittest \
@@ -55,5 +56,5 @@ jobs:
       - name: Cleanup benchmark containers
         if: always()
         run: |
-          ids="$(docker ps -aq --filter 'label=iab.managed=true')"
+          ids="$(docker ps -aq --filter 'label=iab.owner=evaluator-${{ github.run_id }}-${{ github.run_attempt }}')"
           if [ -n "$ids" ]; then docker rm -f $ids; fi

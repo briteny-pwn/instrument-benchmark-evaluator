@@ -113,13 +113,27 @@ class LinuxContainerIsolationTests(unittest.TestCase):
 
     def test_memory_limit_is_observed_as_oom(self) -> None:
         result = self._run("fill_memory.py")
-        self.assertEqual(result.status, "oom_killed")
+        self.assertEqual(result.status, "candidate_oom")
         self.assertTrue(result.container_evidence.oom_killed)
+
+    def test_bounded_tmpfs_result_is_collected(self) -> None:
+        result = self._run("simple_result.py")
+        self.assertEqual(result.status, "completed", result.stderr)
+        self.assertEqual(result.result, {"ok": True})
+        self.assertEqual(result.artifact_evidence.uid, 10001)
 
     def test_pid_limit_contains_process_pressure(self) -> None:
         result = self._run("fork_bomb_guarded.py")
         self.assertEqual(result.status, "candidate_failure")
         self.assertEqual(result.container_evidence.pids_limit, 64)
+
+    def test_stdout_limit_kills_candidate_immediately(self) -> None:
+        result = self._run("flood_stdout.py")
+        self.assertEqual(result.status, "output_limit")
+
+    def test_output_tmpfs_contains_disk_pressure(self) -> None:
+        result = self._run("fill_output.py")
+        self.assertEqual(result.status, "candidate_failure")
 
 
 if __name__ == "__main__":

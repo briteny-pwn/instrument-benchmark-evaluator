@@ -5,7 +5,8 @@ from typing import Protocol
 
 from .container.contracts import EvaluatorMaxima, effective_policy
 from .container.docker_client import DockerClient
-from .container.image import ImageEvidence, resolve_image
+from .container.errors import ContainerInfrastructureError
+from .container.image import ImageEvidence, build_image, resolve_image
 from .container.runner import ContainerProcessResult, run_container
 from .contracts import InstanceSettings
 from .host_submission import ProcessResult
@@ -51,11 +52,18 @@ class DockerCandidateBackend:
         client: DockerClient | None = None,
     ) -> DockerCandidateBackend:
         docker = client or DockerClient()
-        image = resolve_image(
-            instance.container,
-            docker,
-            instance_id=instance.instance_id,
-        )
+        try:
+            image = resolve_image(
+                instance.container,
+                docker,
+                instance_id=instance.instance_id,
+            )
+        except ContainerInfrastructureError:
+            image = build_image(
+                instance.container,
+                docker,
+                instance_id=instance.instance_id,
+            )
         return cls(client=docker, image=image)
 
     def invoke(

@@ -88,7 +88,7 @@ class ContainerReportingTests(unittest.TestCase):
 
     def test_timeout_and_oom_are_candidate_outcomes_not_infrastructure(self) -> None:
         report = self.base_report()
-        for status in ("candidate_timeout", "oom_killed"):
+        for status in ("candidate_timeout", "candidate_oom"):
             with self.subTest(status=status):
                 attached = attach_runtime_evidence(
                     report, process(status), forced_cleanup=True

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import base64
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,11 +11,11 @@ from instrument_benchmark_evaluator.container.contracts import (
     effective_policy,
     load_container_contract,
 )
-from instrument_benchmark_evaluator.container.docker_client import DockerCommandResult
-from instrument_benchmark_evaluator.container.errors import (
-    ContainerCommandTimeout,
-    ContainerInfrastructureError,
+from instrument_benchmark_evaluator.container.docker_client import (
+    AttachedContainerResult,
+    DockerCommandResult,
 )
+from instrument_benchmark_evaluator.container.errors import ContainerInfrastructureError
 from instrument_benchmark_evaluator.container.runner import run_container
 
 
@@ -70,14 +72,44 @@ class FakeClient:
         self.calls.append(argv)
         if argv[0] == "create":
             return DockerCommandResult(0, "container-1\n", "")
-        if argv[0] == "wait":
-            if self.timeout:
-                self.timeout = False
-                raise ContainerCommandTimeout("timed out")
-            return DockerCommandResult(0, f"{self.exit_code}\n", "")
-        if argv[0] == "logs":
-            return DockerCommandResult(0, "stdout", "stderr")
+        if argv[0] == "exec":
+            payload = b'{"ok":true}'
+            item = {
+                "payload": base64.b64encode(payload).decode(),
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size": len(payload),
+                "uid": 10001,
+                "gid": 10001,
+                "mode": 0o644,
+            }
+            return DockerCommandResult(
+                0,
+                json.dumps({"result.json": item, "return.json": item}),
+                "",
+            )
         return DockerCommandResult(0, "", "")
+
+    def start_attached(
+        self,
+        container_id,
+        *,
+        timeout,
+        stdout_limit,
+        stderr_limit,
+        artifact_callback=None,
+    ):
+        self.calls.append(["start_attached", container_id])
+        completed = self.exit_code == 0 and not self.timeout
+        if completed and artifact_callback is not None:
+            artifact_callback()
+        return AttachedContainerResult(
+            returncode=self.exit_code,
+            stdout="stdout",
+            stderr="stderr",
+            timed_out=self.timeout,
+            output_limited=False,
+            completed_signal=completed,
+        )
 
     def inspect(self, container_id):
         self.calls.append(["inspect", container_id])
@@ -109,6 +141,7 @@ class ContainerRunnerTests(unittest.TestCase):
         (self.gateway).touch()
 
     def invoke(self, client: FakeClient):
+        client.inspect_value["Image"] = self.contract.lock.image_digest
         if client.exit_code == 0 and not client.timeout:
             value = {"ok": True}
             (self.output / "result.json").write_text(json.dumps(value))
@@ -135,8 +168,13 @@ class ContainerRunnerTests(unittest.TestCase):
             "--read-only",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
+            "--log-driver=none",
+            "--memory-swap=512m",
+            "--ulimit=nofile=256:256",
+            "--stop-timeout=1",
         ):
             self.assertIn(flag, create)
+        self.assertTrue(any(item.startswith("--tmpfs=/output:") for item in create))
         self.assertNotIn("--privileged", create)
         self.assertNotIn("/var/run/docker.sock", " ".join(create))
         self.assertEqual(result.status, "completed")
@@ -146,19 +184,22 @@ class ContainerRunnerTests(unittest.TestCase):
     def test_crash_oom_timeout_invalid_result_and_remove_failure(self) -> None:
         cases = (
             (FakeClient(exit_code=1), "candidate_failure"),
-            (FakeClient(exit_code=137, oom=True), "oom_killed"),
+            (FakeClient(exit_code=137, oom=True), "candidate_oom"),
             (FakeClient(timeout=True), "candidate_timeout"),
             (FakeClient(exit_code=3), "invalid_result"),
-            (FakeClient(exit_code=1, remove_failure=True), "candidate_failure"),
+            (FakeClient(exit_code=1, remove_failure=True), "infrastructure_failure"),
         )
         for client, status in cases:
             with self.subTest(status=status, remove=client.remove_failure):
                 result = self.invoke(client)
                 self.assertEqual(result.status, status)
                 if client.timeout:
-                    self.assertTrue(any(call[0] == "kill" for call in client.calls))
+                    self.assertTrue(
+                        any(call[0] == "start_attached" for call in client.calls)
+                    )
                 if client.remove_failure:
                     self.assertFalse(result.container_evidence.cleanup_succeeded)
+                    self.assertEqual(result.candidate_status, "candidate_failure")
 
 
 if __name__ == "__main__":
