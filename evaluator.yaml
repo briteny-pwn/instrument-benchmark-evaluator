@@ -2,6 +2,9 @@ schema_version: 1
 evaluator_id: pyvisa_dut_validation_v1
 protocol_version: 1
 report_schema_version: 1
+container_protocol_version: 1
+candidate_execution: docker
+image_mode: locked
 supported_instances:
   - pyvisa_dut_validation_v1
 fixed_worlds:
@@ -14,4 +17,3 @@ fixed_worlds:
   - dirty_initial_state
   - dut_gain_failure
   - command_error
-

@@ -27,6 +27,8 @@ class EvaluatorRequest:
     max_output_bytes: int
     repeated_worlds: int
     repeated_base_seed: int
+    container_protocol_version: int
+    image_mode: str
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,8 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         "max_output_bytes",
         "repeated_worlds",
         "repeated_base_seed",
+        "container_protocol_version",
+        "image_mode",
     }
     if not isinstance(value, dict) or set(value) != required:
         raise ContractError("request fields do not match protocol version 1")
@@ -71,6 +75,10 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         raise ContractError("unsupported protocol_version")
     if value["instance_id"] != EVALUATOR_ID:
         raise ContractError("unsupported instance_id")
+    if value["container_protocol_version"] != 1:
+        raise ContractError("unsupported container_protocol_version")
+    if value["image_mode"] != "locked":
+        raise ContractError("image_mode must be locked")
     instance_path = _absolute_existing_directory(value["instance_path"], "instance_path")
     candidate_path = _absolute_existing_file(value["candidate_path"], "candidate_path")
     timeout = _positive_number(value["timeout_seconds"], "timeout_seconds")
@@ -90,6 +98,8 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         max_output_bytes=output_limit,
         repeated_worlds=repeated,
         repeated_base_seed=seed,
+        container_protocol_version=1,
+        image_mode="locked",
     )
 
 

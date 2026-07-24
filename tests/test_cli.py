@@ -37,6 +37,8 @@ class EvaluatorCliContractTests(unittest.TestCase):
             "max_output_bytes": 65536,
             "repeated_worlds": 10,
             "repeated_base_seed": 40000,
+            "container_protocol_version": 1,
+            "image_mode": "locked",
         }
 
     def test_load_request_resolves_absolute_paths(self) -> None:
