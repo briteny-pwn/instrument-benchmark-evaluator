@@ -5,7 +5,8 @@
   "type": "object",
   "required": [
     "schema_version", "status", "strict_pass", "score", "dimensions",
-    "strict_gates", "evidence_confidence", "worlds"
+    "strict_gates", "evidence_confidence", "infrastructure_valid",
+    "retry_eligible", "worlds"
   ],
   "properties": {
     "schema_version": {"const": 1},
@@ -15,18 +16,37 @@
     "dimensions": {"type": "object"},
     "strict_gates": {"type": "object"},
     "evidence_confidence": {"type": "object"},
+    "infrastructure_valid": {"type": "boolean"},
+    "retry_eligible": {"type": "boolean"},
     "worlds": {
       "type": "array",
       "minItems": 1,
       "items": {
         "type": "object",
         "required": [
-          "world_id", "device_evidence", "experiment_completion"
+          "world_id", "device_evidence", "experiment_completion",
+          "container_evidence", "artifact_evidence", "forced_cleanup",
+          "infrastructure_valid", "retry_eligible"
         ],
         "properties": {
           "world_id": {"type": "string"},
           "device_evidence": {"type": "object"},
-          "experiment_completion": {"type": "object"}
+          "experiment_completion": {"type": "object"},
+          "container_evidence": {
+            "type": ["object", "null"],
+            "properties": {
+              "container_id": {"type": "string"},
+              "image_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+              "network_mode": {"type": "string"},
+              "readonly_rootfs": {"type": "boolean"},
+              "user": {"type": "string"},
+              "cleanup_succeeded": {"type": ["boolean", "null"]}
+            }
+          },
+          "artifact_evidence": {"type": ["object", "null"]},
+          "forced_cleanup": {"type": "boolean"},
+          "infrastructure_valid": {"type": "boolean"},
+          "retry_eligible": {"type": "boolean"}
         }
       }
     }

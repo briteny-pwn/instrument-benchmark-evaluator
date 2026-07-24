@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Mapping
 
@@ -21,6 +21,7 @@ from evaluators.pyvisa_dut_validation_v1.worlds import (
 )
 
 from .candidate_backend import CandidateBackend, CandidateProcessResult
+from .container.runner import ContainerProcessResult
 from .contracts import InstanceSettings, RunSettings
 from .isolation import prepare_workspace
 
@@ -89,6 +90,9 @@ def run_world(
         )
         if process.status != "completed":
             report = dataclass_replace_status(report, process.status)
+        report = attach_runtime_evidence(
+            report, process, forced_cleanup=forced_cleanup
+        )
         return WorldExecution(
             process=process,
             report=report,
@@ -158,6 +162,44 @@ def run_full_suite(
 
 
 def dataclass_replace_status(report: WorldReport, status: str) -> WorldReport:
-    from dataclasses import replace
-
     return replace(report, status=status, strict_pass=False)
+
+
+def attach_runtime_evidence(
+    report: WorldReport,
+    process: CandidateProcessResult,
+    *,
+    forced_cleanup: bool,
+) -> WorldReport:
+    if not isinstance(process, ContainerProcessResult):
+        return replace(report, forced_cleanup=forced_cleanup)
+    container = process.container_evidence
+    checks = (
+        container.network_mode == "none",
+        container.readonly_rootfs,
+        container.user == "10001:10001",
+        "ALL" in container.cap_drop,
+        "no-new-privileges" in container.security_options,
+        container.cleanup_succeeded is True,
+        bool(container.image_digest),
+    )
+    runtime_confidence = sum(checks) / len(checks)
+    confidence = replace(
+        report.evidence_confidence,
+        container_runtime=runtime_confidence,
+    )
+    infrastructure_valid = process.status != "infrastructure_failure"
+    return replace(
+        report,
+        evidence_confidence=confidence,
+        container_evidence=container.to_dict(),
+        artifact_evidence=(
+            process.artifact_evidence.to_dict()
+            if process.artifact_evidence is not None
+            else None
+        ),
+        forced_cleanup=forced_cleanup,
+        infrastructure_valid=infrastructure_valid,
+        retry_eligible=not infrastructure_valid,
+        strict_pass=report.strict_pass and infrastructure_valid,
+    )

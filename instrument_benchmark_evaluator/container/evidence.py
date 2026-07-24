@@ -14,6 +14,15 @@ class MountEvidence:
     mode: str
     writable: bool
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "type": self.mount_type,
+            "source": self.source,
+            "destination": self.destination,
+            "mode": self.mode,
+            "writable": self.writable,
+        }
+
 
 @dataclass(frozen=True)
 class ContainerEvidence:
@@ -40,6 +49,33 @@ class ContainerEvidence:
     cleanup_attempted: bool = False
     cleanup_succeeded: bool | None = None
     cleanup_error: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "container_id": self.container_id,
+            "image_digest": self.image_digest,
+            "created_at": self.created_at,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "status": self.status,
+            "exit_code": self.exit_code,
+            "oom_killed": self.oom_killed,
+            "user": self.user,
+            "network_mode": self.network_mode,
+            "readonly_rootfs": self.readonly_rootfs,
+            "cap_drop": list(self.cap_drop),
+            "security_options": list(self.security_options),
+            "memory_bytes": self.memory_bytes,
+            "nano_cpus": self.nano_cpus,
+            "pids_limit": self.pids_limit,
+            "pid_mode": self.pid_mode,
+            "ipc_mode": self.ipc_mode,
+            "uts_mode": self.uts_mode,
+            "mounts": [mount.to_dict() for mount in self.mounts],
+            "cleanup_attempted": self.cleanup_attempted,
+            "cleanup_succeeded": self.cleanup_succeeded,
+            "cleanup_error": self.cleanup_error,
+        }
 
 
 def normalize_inspect(value: dict[str, Any]) -> ContainerEvidence:

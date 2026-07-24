@@ -22,6 +22,16 @@ class ArtifactEvidence:
     gid: int
     mode: int
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "filename": self.filename,
+            "size_bytes": self.size_bytes,
+            "sha256": self.sha256,
+            "uid": self.uid,
+            "gid": self.gid,
+            "mode": self.mode,
+        }
+
 
 @dataclass(frozen=True)
 class CollectedResult:

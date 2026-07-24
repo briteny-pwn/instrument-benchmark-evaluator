@@ -32,6 +32,7 @@ class EvidenceConfidence:
     final_state: float
     scenarios: float
     infrastructure: float
+    container_runtime: float = 0.0
 
     @property
     def total(self) -> float:
@@ -43,8 +44,9 @@ class EvidenceConfidence:
                 self.final_state,
                 self.scenarios,
                 self.infrastructure,
+                self.container_runtime,
             )
-        ) / 6.0
+        ) / 7.0
 
     def to_dict(self) -> dict[str, float]:
         return {
@@ -54,6 +56,7 @@ class EvidenceConfidence:
             "final_state": self.final_state,
             "scenarios": self.scenarios,
             "infrastructure": self.infrastructure,
+            "container_runtime": self.container_runtime,
             "total": self.total,
         }
 
@@ -72,6 +75,11 @@ class WorldReport:
     device_evidence: dict[str, dict[str, bool]]
     experiment_completion: dict[str, bool]
     errors: tuple[str, ...]
+    container_evidence: dict[str, Any] | None = None
+    artifact_evidence: dict[str, Any] | None = None
+    forced_cleanup: bool = False
+    infrastructure_valid: bool = True
+    retry_eligible: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -94,6 +102,11 @@ class WorldReport:
             "device_evidence": self.device_evidence,
             "experiment_completion": self.experiment_completion,
             "errors": list(self.errors),
+            "container_evidence": self.container_evidence,
+            "artifact_evidence": self.artifact_evidence,
+            "forced_cleanup": self.forced_cleanup,
+            "infrastructure_valid": self.infrastructure_valid,
+            "retry_eligible": self.retry_eligible,
         }
 
 
@@ -108,6 +121,8 @@ class EvaluationReport:
     strict_gates: dict[str, bool]
     strict_pass: bool
     evidence_confidence: EvidenceConfidence
+    infrastructure_valid: bool
+    retry_eligible: bool
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -120,6 +135,8 @@ class EvaluationReport:
             "fixed_world_pass_rate": self.fixed_world_pass_rate,
             "repeated_world_pass_rate": self.repeated_world_pass_rate,
             "evidence_confidence": self.evidence_confidence.to_dict(),
+            "infrastructure_valid": self.infrastructure_valid,
+            "retry_eligible": self.retry_eligible,
             "worlds": [
                 report.to_dict()
                 for report in self.fixed_reports + self.repeated_reports
@@ -172,7 +189,12 @@ def aggregate_reports(
         scenarios=(len(fixed) + len(repeated)) / (len(fixed) + len(repeated)),
         infrastructure=sum(r.evidence_confidence.infrastructure for r in all_reports)
         / len(all_reports),
+        container_runtime=sum(
+            r.evidence_confidence.container_runtime for r in all_reports
+        )
+        / len(all_reports),
     )
+    infrastructure_valid = all(report.infrastructure_valid for report in all_reports)
     return EvaluationReport(
         fixed_reports=fixed,
         repeated_reports=repeated,
@@ -181,8 +203,10 @@ def aggregate_reports(
         score=sum(dimensions.values()),
         dimensions=dimensions,
         strict_gates=gates,
-        strict_pass=all(gates.values()),
+        strict_pass=all(gates.values()) and infrastructure_valid,
         evidence_confidence=confidence,
+        infrastructure_valid=infrastructure_valid,
+        retry_eligible=any(report.retry_eligible for report in all_reports),
     )
 
 
