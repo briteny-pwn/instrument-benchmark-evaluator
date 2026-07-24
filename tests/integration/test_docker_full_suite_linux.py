@@ -47,6 +47,7 @@ def semantic_projection(value):
             "container_evidence",
             "artifact_evidence",
             "container_runtime",
+            "evidence_sequences",
             "total",
         }
         return {
