@@ -21,6 +21,7 @@ class ContainerOutputTests(unittest.TestCase):
     def write(self, value: str, name: str = "result.json") -> Path:
         path = self.root / name
         path.write_text(value, encoding="utf-8")
+        path.chmod(0o644)
         return path
 
     def test_collects_regular_bounded_json_with_hash(self) -> None:
