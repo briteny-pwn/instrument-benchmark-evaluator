@@ -363,11 +363,20 @@ class GatewayServer:
         value = arguments.get("termination")
         if value is None:
             return None
-        if value not in {"\n", "\r", "\r\n"}:
+        normalized = {
+            "LF": "\n",
+            "CR": "\r",
+            "CRLF": "\r\n",
+            "\n": "\n",
+            "\r": "\r",
+            "\r\n": "\r\n",
+        }.get(value)
+        if normalized is None:
             raise _GatewayOperationError(
-                "invalid_argument", "termination must be newline, carriage return, or both"
+                "invalid_argument",
+                "termination must be LF, CR, CRLF, newline, carriage return, or both",
             )
-        return value
+        return normalized
 
     @staticmethod
     def _decode_payload(arguments: dict[str, Any]) -> bytes:

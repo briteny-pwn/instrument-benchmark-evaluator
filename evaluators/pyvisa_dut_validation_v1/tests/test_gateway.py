@@ -38,6 +38,19 @@ def running_gateway(rack: InstrumentRack, *, journal=None):
 
 
 class GatewayTests(unittest.TestCase):
+    def test_symbolic_termination_names_are_accepted(self) -> None:
+        with running_gateway(InstrumentRack(WorldSpec.nominal())) as (endpoint, _):
+            with GatewayClient(endpoint) as client:
+                for symbolic in ("LF", "CR", "CRLF"):
+                    with self.subTest(symbolic=symbolic):
+                        session = client.open_resource(PSU_RESOURCE)
+                        client.set_read_termination(session, symbolic)
+                        client.set_write_termination(session, symbolic)
+                        client.write(session, b"*IDN?")
+                        identity = client.read(session)
+                        client.close_resource(session)
+                        self.assertIn(b"Virtual-E36312A", identity)
+
     def test_lists_opens_configures_queries_and_closes(self) -> None:
         with running_gateway(InstrumentRack(WorldSpec.nominal())) as (endpoint, _):
             with GatewayClient(endpoint) as client:
