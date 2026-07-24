@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .contracts import InstanceSettings
+
 
 BOOTSTRAP = Path(__file__).with_name("bootstrap.py")
 
@@ -39,8 +41,7 @@ def invoke_candidate(
         python_executable,
         "-I",
         str(BOOTSTRAP),
-        str(workspace),
-        solution_filename,
+        str((workspace / solution_filename).resolve()),
         str(endpoint),
         str(output_path),
         str(return_path),
@@ -96,6 +97,32 @@ def invoke_candidate(
             None,
         )
     return ProcessResult("completed", process.returncode, stdout, stderr, result)
+
+
+class HostCandidateBackend:
+    """Test-only backend retaining the legacy host subprocess execution."""
+
+    def invoke(
+        self,
+        *,
+        workspace: Path,
+        candidate_path: Path,
+        endpoint: Path,
+        instance: InstanceSettings,
+        timeout_seconds: float,
+        max_output_bytes: int,
+        run_id: str,
+        world_id: str,
+    ) -> ProcessResult:
+        del candidate_path, run_id, world_id
+        return invoke_candidate(
+            workspace,
+            endpoint,
+            timeout_seconds=timeout_seconds,
+            max_output_bytes=max_output_bytes,
+            solution_filename=instance.submission_filename,
+            result_filename=instance.result_filename,
+        )
 
 
 def _limit(value: str, max_bytes: int) -> str:

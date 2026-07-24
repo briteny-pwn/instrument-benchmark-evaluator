@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -14,6 +15,7 @@ from .contracts import (
     load_evaluator_request,
     load_instance_settings,
 )
+from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .run import run_full_suite
 
 
@@ -29,7 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    backend_factory: Callable[[object], CandidateBackend] | None = None,
+) -> int:
     arguments = build_parser().parse_args(argv)
     if arguments.command != "run":
         return 2
@@ -45,6 +51,12 @@ def main(argv: list[str] | None = None) -> int:
             repeated_worlds=request.repeated_worlds,
             timeout_seconds=request.timeout_seconds,
             max_output_bytes=request.max_output_bytes,
+            run_id=request.run_id,
+        )
+        backend = (
+            backend_factory(instance)
+            if backend_factory is not None
+            else DockerCandidateBackend.from_instance(instance)
         )
         report = run_full_suite(
             benchmark=settings,
@@ -55,6 +67,7 @@ def main(argv: list[str] | None = None) -> int:
             / "pyvisa_dut_validation_v1"
             / "worlds",
             repeated_base_seed=request.repeated_base_seed,
+            backend=backend,
         ).to_dict()
         report["evaluator"] = {
             "id": EVALUATOR_ID,

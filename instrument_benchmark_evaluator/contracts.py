@@ -46,6 +46,7 @@ class RunSettings:
     repeated_worlds: int
     timeout_seconds: float
     max_output_bytes: int
+    run_id: str = "run"
 
 
 def load_evaluator_request(path: Path) -> EvaluatorRequest:

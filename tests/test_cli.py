@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 from instrument_benchmark_evaluator.contracts import (
@@ -11,6 +12,10 @@ from instrument_benchmark_evaluator.contracts import (
     load_evaluator_request,
 )
 from instrument_benchmark_evaluator.cli import main
+from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
+from instrument_benchmark_evaluator.container.errors import (
+    ContainerInfrastructureError,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -64,6 +69,46 @@ class EvaluatorCliContractTests(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "instance_id"):
                 load_evaluator_request(path)
 
+    def test_cli_defaults_to_docker_and_reports_infrastructure_failure(self) -> None:
+        instance = ROOT / "tests" / "fixtures" / "instance"
+        candidate = (
+            ROOT
+            / "evaluators"
+            / "pyvisa_dut_validation_v1"
+            / "reference"
+            / "solution.py"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request_path = root / "request.json"
+            report_path = root / "report.json"
+            value = self.valid_request(root)
+            value.update(
+                {
+                    "instance_path": str(instance),
+                    "candidate_path": str(candidate),
+                    "repeated_worlds": 1,
+                }
+            )
+            request_path.write_text(json.dumps(value))
+            with patch(
+                "instrument_benchmark_evaluator.cli."
+                "DockerCandidateBackend.from_instance",
+                side_effect=ContainerInfrastructureError("docker unavailable"),
+            ) as construct:
+                status = main(
+                    [
+                        "run",
+                        "--request",
+                        str(request_path),
+                        "--report",
+                        str(report_path),
+                    ]
+                )
+            self.assertEqual(status, 3)
+            construct.assert_called_once()
+            self.assertFalse(report_path.exists())
+
     def test_cli_runs_reference_candidate_and_writes_report(self) -> None:
         instance = ROOT / "tests" / "fixtures" / "instance"
         candidate = (
@@ -93,7 +138,8 @@ class EvaluatorCliContractTests(unittest.TestCase):
                     str(request_path),
                     "--report",
                     str(report_path),
-                ]
+                ],
+                backend_factory=lambda instance: HostCandidateBackend(),
             )
             self.assertEqual(status, 0)
             report = json.loads(report_path.read_text())

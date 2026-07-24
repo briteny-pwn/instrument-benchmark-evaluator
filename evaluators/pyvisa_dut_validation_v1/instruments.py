@@ -403,6 +403,16 @@ class InstrumentRack:
     def close(self) -> None:
         self._resource_manager.close()
 
+    def force_safe(self) -> None:
+        """Place host-owned simulated hardware in a safe state after a run."""
+        snapshot = self.world.snapshot()
+        if snapshot.awg_output:
+            self.world.apply(SemanticAction("awg.output", {"enabled": False}))
+        if snapshot.psu_output:
+            self.world.apply(SemanticAction("psu.output", {"enabled": False}))
+        if self.world.snapshot().closed_routes:
+            self.world.apply(SemanticAction("switch.open_all", {}))
+
 
 def _parse_bool(value: str) -> bool:
     normalized = value.strip().upper()

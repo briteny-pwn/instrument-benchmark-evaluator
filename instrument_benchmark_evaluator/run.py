@@ -8,7 +8,7 @@ from typing import Callable, Mapping
 from evaluators.pyvisa_dut_validation_v1.gateway.journal import EventJournal
 from evaluators.pyvisa_dut_validation_v1.gateway.server import GatewayServer
 from evaluators.pyvisa_dut_validation_v1.instruments import InstrumentRack
-from evaluators.pyvisa_dut_validation_v1.models import WorldSpec
+from evaluators.pyvisa_dut_validation_v1.models import WorldSnapshot, WorldSpec
 from evaluators.pyvisa_dut_validation_v1.scoring import (
     EvaluationReport,
     WorldReport,
@@ -20,15 +20,18 @@ from evaluators.pyvisa_dut_validation_v1.worlds import (
     repeated_specs,
 )
 
+from .candidate_backend import CandidateBackend, CandidateProcessResult
 from .contracts import InstanceSettings, RunSettings
 from .isolation import prepare_workspace
-from .submission import ProcessResult, invoke_candidate
 
 
 @dataclass(frozen=True)
 class WorldExecution:
-    process: ProcessResult
+    process: CandidateProcessResult
     report: WorldReport
+    pre_cleanup_snapshot: WorldSnapshot
+    post_cleanup_snapshot: WorldSnapshot
+    forced_cleanup: bool
 
 
 def run_world(
@@ -37,6 +40,7 @@ def run_world(
     instance: InstanceSettings,
     spec: WorldSpec,
     candidate_path: Path,
+    backend: CandidateBackend,
 ) -> WorldExecution:
     with tempfile.TemporaryDirectory(prefix="iab-experiment-") as directory:
         root = Path(directory)
@@ -52,21 +56,29 @@ def run_world(
             resource_order="normal",
         )
         journal = EventJournal(f"{spec.world_id}-{spec.seed}", spec.world_id)
-        endpoint = root / "gateway.sock"
+        gateway_dir = root / "gateway"
+        gateway_dir.mkdir(mode=0o755)
+        endpoint = gateway_dir / "gateway.sock"
         server = GatewayServer(endpoint, rack, journal=journal)
         server.start()
+        endpoint.chmod(0o666)
         try:
-            process = invoke_candidate(
-                workspace,
-                endpoint,
+            process = backend.invoke(
+                workspace=workspace,
+                candidate_path=candidate_path,
+                endpoint=endpoint,
+                instance=instance,
                 timeout_seconds=benchmark.timeout_seconds,
                 max_output_bytes=benchmark.max_output_bytes,
-                solution_filename=instance.submission_filename,
-                result_filename=instance.result_filename,
+                run_id=benchmark.run_id,
+                world_id=spec.world_id,
             )
         finally:
             server.stop()
             final_snapshot = rack.world.snapshot()
+            forced_cleanup = not final_snapshot.safe
+            rack.force_safe()
+            post_cleanup_snapshot = rack.world.snapshot()
             rack.close()
         report = grade_run(
             process.result,
@@ -77,7 +89,13 @@ def run_world(
         )
         if process.status != "completed":
             report = dataclass_replace_status(report, process.status)
-        return WorldExecution(process=process, report=report)
+        return WorldExecution(
+            process=process,
+            report=report,
+            pre_cleanup_snapshot=final_snapshot,
+            post_cleanup_snapshot=post_cleanup_snapshot,
+            forced_cleanup=forced_cleanup,
+        )
 
 
 def run_suite(
@@ -86,6 +104,7 @@ def run_suite(
     instance: InstanceSettings,
     specs: Mapping[str, WorldSpec],
     candidate_path: Path,
+    backend: CandidateBackend,
     execute: Callable[..., object] = run_world,
 ) -> tuple[object, ...]:
     missing = [world_id for world_id in benchmark.fixed_worlds if world_id not in specs]
@@ -97,6 +116,7 @@ def run_suite(
             instance=instance,
             spec=specs[world_id],
             candidate_path=candidate_path,
+            backend=backend,
         )
         for world_id in benchmark.fixed_worlds
     )
@@ -108,6 +128,7 @@ def run_full_suite(
     instance: InstanceSettings,
     candidate_path: Path,
     world_directory: Path,
+    backend: CandidateBackend,
     repeated_base_seed: int = 20_000,
 ) -> EvaluationReport:
     fixed_specs = load_world_specs(world_directory)
@@ -116,6 +137,7 @@ def run_full_suite(
         instance=instance,
         specs=fixed_specs,
         candidate_path=candidate_path,
+        backend=backend,
     )
     repeated_executions = tuple(
         run_world(
@@ -123,6 +145,7 @@ def run_full_suite(
             instance=instance,
             spec=spec,
             candidate_path=candidate_path,
+            backend=backend,
         )
         for spec in repeated_specs(
             benchmark.repeated_worlds, base_seed=repeated_base_seed
