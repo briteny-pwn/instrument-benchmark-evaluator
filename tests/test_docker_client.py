@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import subprocess
 import unittest
+from unittest import mock
 
+from instrument_benchmark_evaluator.container import docker_client
 from instrument_benchmark_evaluator.container.docker_client import (
     DockerClient,
     DockerCommandResult,
@@ -32,6 +34,19 @@ class RecordingExecutor:
 
 
 class DockerClientTests(unittest.TestCase):
+    def test_attached_client_is_detached_before_container_kill(self) -> None:
+        process = mock.Mock()
+        events: list[str] = []
+        process.terminate.side_effect = lambda: events.append("detach")
+        process.wait.side_effect = lambda timeout: events.append("wait")
+        with mock.patch.object(
+            docker_client,
+            "_kill_container",
+            side_effect=lambda executable, container_id: events.append("kill"),
+        ):
+            docker_client._detach_and_kill(process, "docker", "container-1")
+        self.assertEqual(events, ["detach", "wait", "kill"])
+
     def test_inspect_uses_argument_vector_without_shell(self) -> None:
         executor = RecordingExecutor(
             DockerCommandResult(0, '[{"Id":"abc"}]', "")

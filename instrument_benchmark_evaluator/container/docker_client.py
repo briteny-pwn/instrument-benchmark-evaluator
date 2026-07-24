@@ -119,7 +119,7 @@ class DockerClient:
             remaining = deadline - time.monotonic()
             if remaining <= 0 and not killed:
                 timed_out = True
-                _kill_container(self.executable, container_id)
+                _detach_and_kill(process, self.executable, container_id)
                 killed = True
                 remaining = 1.0
             elif remaining <= 0:
@@ -134,7 +134,7 @@ class DockerClient:
                 buffer.extend(chunk[: max(0, limit + 1 - len(buffer))])
                 if len(buffer) > limit and not killed:
                     output_limited = True
-                    _kill_container(self.executable, container_id)
+                    _detach_and_kill(process, self.executable, container_id)
                     killed = True
                 if (
                     stream == "stdout"
@@ -145,7 +145,7 @@ class DockerClient:
                     if artifact_callback is not None:
                         artifact_callback()
                     completed_signal = True
-                    _kill_container(self.executable, container_id)
+                    _detach_and_kill(process, self.executable, container_id)
                     killed = True
         returncode = process.wait(timeout=5)
         selector.close()
@@ -220,3 +220,17 @@ def _kill_container(executable: str, container_id: str) -> None:
             "failed to kill bounded candidate container: "
             + completed.stderr.decode("utf-8", errors="replace").strip()
         )
+
+
+def _detach_and_kill(
+    process: subprocess.Popen[bytes],
+    executable: str,
+    container_id: str,
+) -> None:
+    process.terminate()
+    try:
+        process.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=2)
+    _kill_container(executable, container_id)
