@@ -127,6 +127,7 @@ def _build_in_context(
             "build",
             "--load",
             "--provenance=false",
+            "--build-arg=SOURCE_DATE_EPOCH=0",
             "--network=none",
             f"--platform={contract.platform}",
             "--label",
