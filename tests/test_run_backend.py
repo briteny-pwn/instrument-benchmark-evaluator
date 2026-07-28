@@ -29,7 +29,47 @@ class UnsafeFailureBackend:
         return ProcessResult("candidate_failure", 1, "", "boom", None)
 
 
+class PathRecordingBackend:
+    def __init__(self) -> None:
+        self.workspace: Path | None = None
+        self.endpoint: Path | None = None
+
+    def invoke(self, *, workspace, endpoint, **kwargs):
+        self.workspace = workspace
+        self.endpoint = endpoint
+        return ProcessResult("candidate_failure", 1, "", "boom", None)
+
+
 class RunBackendTests(unittest.TestCase):
+    def test_world_paths_are_created_below_shared_run_root(self) -> None:
+        instance = load_instance_settings(INSTANCE)
+        candidate = EVALUATOR / "reference" / "solution.py"
+        spec = load_world_specs(EVALUATOR / "worlds")["nominal"]
+        backend = PathRecordingBackend()
+        with tempfile.TemporaryDirectory() as directory:
+            shared = Path(directory) / "shared"
+            shared.mkdir()
+            benchmark = RunSettings(
+                instance_path=INSTANCE,
+                fixed_worlds=("nominal",),
+                repeated_worlds=1,
+                timeout_seconds=5,
+                max_output_bytes=65536,
+                shared_run_root=shared,
+            )
+            run_world(
+                benchmark=benchmark,
+                instance=instance,
+                spec=spec,
+                candidate_path=candidate,
+                backend=backend,
+            )
+            assert backend.workspace is not None
+            assert backend.endpoint is not None
+            self.assertTrue(backend.workspace.is_relative_to(shared))
+            self.assertTrue(backend.endpoint.is_relative_to(shared))
+            self.assertFalse(backend.workspace.exists())
+
     def test_candidate_failure_captures_unsafe_state_then_forces_cleanup(self) -> None:
         instance = load_instance_settings(INSTANCE)
         benchmark = RunSettings(

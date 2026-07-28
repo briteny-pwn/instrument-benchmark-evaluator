@@ -25,7 +25,9 @@ class EvaluatorCliContractTests(unittest.TestCase):
     def valid_request(self, directory: Path) -> dict[str, object]:
         instance = directory / "instance"
         candidate = directory / "solution.py"
+        shared_run_root = directory / "s"
         instance.mkdir()
+        shared_run_root.mkdir()
         candidate.write_text("def run_experiment(endpoint, output): pass\n")
         return {
             "protocol_version": 1,
@@ -39,6 +41,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             "repeated_base_seed": 40000,
             "container_protocol_version": 1,
             "image_mode": "locked",
+            "shared_run_root": str(shared_run_root),
         }
 
     def test_load_request_resolves_absolute_paths(self) -> None:
@@ -50,6 +53,30 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertIsInstance(request, EvaluatorRequest)
             self.assertTrue(request.instance_path.is_absolute())
             self.assertTrue(request.candidate_path.is_absolute())
+            self.assertEqual(
+                request.shared_run_root,
+                (root / "s").resolve(),
+            )
+
+    def test_request_rejects_relative_shared_run_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            value["shared_run_root"] = "shared-runs"
+            path = root / "request.json"
+            path.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ContractError, "shared_run_root"):
+                load_evaluator_request(path)
+
+    def test_request_rejects_filesystem_root_as_shared_run_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            value["shared_run_root"] = "/"
+            path = root / "request.json"
+            path.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ContractError, "shared_run_root"):
+                load_evaluator_request(path)
 
     def test_request_rejects_wrong_protocol(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

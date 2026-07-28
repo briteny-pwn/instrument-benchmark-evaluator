@@ -29,6 +29,7 @@ class EvaluatorRequest:
     repeated_base_seed: int
     container_protocol_version: int
     image_mode: str
+    shared_run_root: Path
 
 
 @dataclass(frozen=True)
@@ -49,6 +50,7 @@ class RunSettings:
     timeout_seconds: float
     max_output_bytes: int
     run_id: str = "run"
+    shared_run_root: Path | None = None
 
 
 def load_evaluator_request(path: Path) -> EvaluatorRequest:
@@ -68,6 +70,7 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         "repeated_base_seed",
         "container_protocol_version",
         "image_mode",
+        "shared_run_root",
     }
     if not isinstance(value, dict) or set(value) != required:
         raise ContractError("request fields do not match protocol version 1")
@@ -85,6 +88,11 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
     output_limit = _positive_int(value["max_output_bytes"], "max_output_bytes")
     repeated = _positive_int(value["repeated_worlds"], "repeated_worlds")
     seed = _positive_int(value["repeated_base_seed"], "repeated_base_seed")
+    shared_run_root = _absolute_existing_directory(
+        value["shared_run_root"], "shared_run_root"
+    )
+    if shared_run_root == Path(shared_run_root.anchor):
+        raise ContractError("shared_run_root must not be a filesystem root")
     run_id = value["run_id"]
     if not isinstance(run_id, str) or not run_id:
         raise ContractError("run_id must be a non-empty string")
@@ -100,6 +108,7 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         repeated_base_seed=seed,
         container_protocol_version=1,
         image_mode="locked",
+        shared_run_root=shared_run_root,
     )
 
 

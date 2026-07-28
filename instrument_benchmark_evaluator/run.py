@@ -43,8 +43,12 @@ def run_world(
     candidate_path: Path,
     backend: CandidateBackend,
 ) -> WorldExecution:
-    with tempfile.TemporaryDirectory(prefix="iab-experiment-") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="w-",
+        dir=benchmark.shared_run_root,
+    ) as directory:
         root = Path(directory)
+        root.chmod(0o755)
         workspace = root / "workspace"
         prepare_workspace(
             benchmark.instance_path,
@@ -57,9 +61,7 @@ def run_world(
             resource_order="normal",
         )
         journal = EventJournal(f"{spec.world_id}-{spec.seed}", spec.world_id)
-        gateway_dir = root / "gateway"
-        gateway_dir.mkdir(mode=0o755)
-        endpoint = gateway_dir / "gateway.sock"
+        endpoint = root / "gateway.sock"
         server = GatewayServer(endpoint, rack, journal=journal)
         server.start()
         endpoint.chmod(0o666)

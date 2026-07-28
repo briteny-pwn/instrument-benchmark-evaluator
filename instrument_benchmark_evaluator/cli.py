@@ -52,6 +52,7 @@ def main(
             timeout_seconds=request.timeout_seconds,
             max_output_bytes=request.max_output_bytes,
             run_id=request.run_id,
+            shared_run_root=request.shared_run_root,
         )
         backend = (
             backend_factory(instance)
