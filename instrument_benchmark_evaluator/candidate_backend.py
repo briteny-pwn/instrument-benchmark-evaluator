@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 from typing import Protocol
 
@@ -82,6 +83,7 @@ class DockerCandidateBackend:
         output_dir = workspace.parent / "output"
         output_dir.mkdir(mode=0o777)
         output_dir.chmod(0o777)
+        staged_runner = _stage_runner(self.runner_dir, workspace.parent / "runner")
         return run_container(
             contract=instance.container,
             policy=effective_policy(
@@ -96,9 +98,28 @@ class DockerCandidateBackend:
             workspace=workspace,
             output_dir=output_dir,
             gateway_socket=endpoint,
-            runner_dir=self.runner_dir,
+            runner_dir=staged_runner,
             client=self.client,
             run_id=run_id,
             world_id=world_id,
             expected_output_uid=10001,
         )
+
+
+def _stage_runner(source: Path, destination: Path) -> Path:
+    required = (
+        Path("bootstrap.py"),
+        Path("container") / "bootstrap_contract.py",
+    )
+    destination.mkdir(mode=0o755)
+    for relative in required:
+        source_file = source / relative
+        if source_file.is_symlink() or not source_file.is_file():
+            raise ContainerInfrastructureError(
+                f"candidate bootstrap input is invalid: {relative}"
+            )
+        target = destination / relative
+        target.parent.mkdir(mode=0o755, parents=True, exist_ok=True)
+        shutil.copy2(source_file, target)
+        target.chmod(0o644)
+    return destination.resolve()

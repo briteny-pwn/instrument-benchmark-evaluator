@@ -3,6 +3,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from evaluators.pyvisa_dut_validation_v1.instruments import PSU_RESOURCE
 from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
@@ -10,6 +11,8 @@ from instrument_benchmark_evaluator.contracts import (
     RunSettings,
     load_instance_settings,
 )
+from instrument_benchmark_evaluator.candidate_backend import DockerCandidateBackend
+from instrument_benchmark_evaluator.container.image import ImageEvidence
 from instrument_benchmark_evaluator.host_submission import ProcessResult
 from instrument_benchmark_evaluator.run import run_world
 from tests.fixtures.instance.starter.gateway_client import GatewayClient
@@ -41,6 +44,50 @@ class PathRecordingBackend:
 
 
 class RunBackendTests(unittest.TestCase):
+    def test_docker_backend_stages_bootstrap_below_shared_world_root(self) -> None:
+        instance = load_instance_settings(INSTANCE)
+        image = ImageEvidence(
+            image_reference="candidate:test",
+            image_id="sha256:" + "a" * 64,
+            platform="linux/amd64",
+            user="10001:10001",
+            dockerfile_sha256="b" * 64,
+            base_images=(),
+            repo_digests=(),
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "image-only-runner"
+            (source / "container").mkdir(parents=True)
+            (source / "bootstrap.py").write_text("# bootstrap\n")
+            (source / "container" / "bootstrap_contract.py").write_text(
+                "# contract\n"
+            )
+            world = root / "shared" / "w-1"
+            workspace = world / "workspace"
+            workspace.mkdir(parents=True)
+            endpoint = world / "gateway.sock"
+            backend = DockerCandidateBackend(
+                client=object(), image=image, runner_dir=source
+            )
+            with patch(
+                "instrument_benchmark_evaluator.candidate_backend.run_container"
+            ) as invoked:
+                backend.invoke(
+                    workspace=workspace,
+                    candidate_path=workspace / "solution.py",
+                    endpoint=endpoint,
+                    instance=instance,
+                    timeout_seconds=5,
+                    max_output_bytes=65536,
+                    run_id="run",
+                    world_id="world",
+                )
+            staged = invoked.call_args.kwargs["runner_dir"]
+            self.assertEqual(staged, (world / "runner").resolve())
+            self.assertEqual((staged / "bootstrap.py").read_text(), "# bootstrap\n")
+            self.assertTrue((staged / "container" / "bootstrap_contract.py").is_file())
+
     def test_world_paths_are_created_below_shared_run_root(self) -> None:
         instance = load_instance_settings(INSTANCE)
         candidate = EVALUATOR / "reference" / "solution.py"
