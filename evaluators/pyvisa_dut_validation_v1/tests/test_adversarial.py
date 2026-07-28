@@ -12,6 +12,7 @@ from instrument_benchmark_evaluator.contracts import (
 )
 from instrument_benchmark_evaluator.isolation import IsolationError, prepare_workspace
 from instrument_benchmark_evaluator.run import run_world
+from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
 from evaluators.pyvisa_dut_validation_v1.worlds import (
     load_world_specs,
     repeated_specs,
@@ -100,6 +101,7 @@ class HiddenWorldTests(unittest.TestCase):
                 instance=instance,
                 spec=specs[world_id],
                 candidate_path=REFERENCE,
+                backend=HostCandidateBackend(),
             )
             self.assertEqual(execution.process.status, "completed", world_id)
             self.assertTrue(
@@ -150,6 +152,7 @@ class HiddenWorldTests(unittest.TestCase):
                     instance=instance,
                     spec=specs[case["world"]],
                     candidate_path=candidate,
+                    backend=HostCandidateBackend(),
                 )
                 self.assertEqual(
                     execution.process.status,

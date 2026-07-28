@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import Callable
 
 import yaml
 
@@ -14,10 +15,13 @@ from .contracts import (
     load_evaluator_request,
     load_instance_settings,
 )
+from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .run import run_full_suite
+from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
 
 
-ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = Path(__file__).with_name("evaluator.yaml")
+WORLD_DIRECTORY = Path(world_resources.__file__).resolve().parent
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -29,7 +33,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(
+    argv: list[str] | None = None,
+    *,
+    backend_factory: Callable[[object], CandidateBackend] | None = None,
+) -> int:
     arguments = build_parser().parse_args(argv)
     if arguments.command != "run":
         return 2
@@ -37,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
         request = load_evaluator_request(arguments.request.resolve())
         instance = load_instance_settings(request.instance_path)
         manifest = yaml.safe_load(
-            (ROOT / "evaluator.yaml").read_text(encoding="utf-8")
+            MANIFEST.read_text(encoding="utf-8")
         )
         settings = RunSettings(
             instance_path=request.instance_path,
@@ -45,16 +53,23 @@ def main(argv: list[str] | None = None) -> int:
             repeated_worlds=request.repeated_worlds,
             timeout_seconds=request.timeout_seconds,
             max_output_bytes=request.max_output_bytes,
+            run_id=request.run_id,
+            shared_run_root=request.shared_run_root,
+        )
+        backend = (
+            backend_factory(instance)
+            if backend_factory is not None
+            else DockerCandidateBackend.from_instance(
+                instance, shared_run_root=request.shared_run_root
+            )
         )
         report = run_full_suite(
             benchmark=settings,
             instance=instance,
             candidate_path=request.candidate_path,
-            world_directory=ROOT
-            / "evaluators"
-            / "pyvisa_dut_validation_v1"
-            / "worlds",
+            world_directory=WORLD_DIRECTORY,
             repeated_base_seed=request.repeated_base_seed,
+            backend=backend,
         ).to_dict()
         report["evaluator"] = {
             "id": EVALUATOR_ID,

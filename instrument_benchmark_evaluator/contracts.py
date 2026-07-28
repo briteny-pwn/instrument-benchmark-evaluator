@@ -8,6 +8,8 @@ from typing import Any
 import yaml
 
 from . import EVALUATOR_ID, PROTOCOL_VERSION
+from .container.contracts import ContainerContract, load_container_contract
+from .container.errors import ContainerContractError
 
 
 class ContractError(ValueError):
@@ -25,6 +27,9 @@ class EvaluatorRequest:
     max_output_bytes: int
     repeated_worlds: int
     repeated_base_seed: int
+    container_protocol_version: int
+    image_mode: str
+    shared_run_root: Path
 
 
 @dataclass(frozen=True)
@@ -34,6 +39,7 @@ class InstanceSettings:
     submission_filename: str
     result_filename: str
     forbidden_import_roots: tuple[str, ...]
+    container: ContainerContract
 
 
 @dataclass(frozen=True)
@@ -43,6 +49,8 @@ class RunSettings:
     repeated_worlds: int
     timeout_seconds: float
     max_output_bytes: int
+    run_id: str = "run"
+    shared_run_root: Path | None = None
 
 
 def load_evaluator_request(path: Path) -> EvaluatorRequest:
@@ -60,6 +68,9 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         "max_output_bytes",
         "repeated_worlds",
         "repeated_base_seed",
+        "container_protocol_version",
+        "image_mode",
+        "shared_run_root",
     }
     if not isinstance(value, dict) or set(value) != required:
         raise ContractError("request fields do not match protocol version 1")
@@ -67,12 +78,21 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         raise ContractError("unsupported protocol_version")
     if value["instance_id"] != EVALUATOR_ID:
         raise ContractError("unsupported instance_id")
+    if value["container_protocol_version"] != 1:
+        raise ContractError("unsupported container_protocol_version")
+    if value["image_mode"] != "locked":
+        raise ContractError("image_mode must be locked")
     instance_path = _absolute_existing_directory(value["instance_path"], "instance_path")
     candidate_path = _absolute_existing_file(value["candidate_path"], "candidate_path")
     timeout = _positive_number(value["timeout_seconds"], "timeout_seconds")
     output_limit = _positive_int(value["max_output_bytes"], "max_output_bytes")
     repeated = _positive_int(value["repeated_worlds"], "repeated_worlds")
     seed = _positive_int(value["repeated_base_seed"], "repeated_base_seed")
+    shared_run_root = _absolute_existing_directory(
+        value["shared_run_root"], "shared_run_root"
+    )
+    if shared_run_root == Path(shared_run_root.anchor):
+        raise ContractError("shared_run_root must not be a filesystem root")
     run_id = value["run_id"]
     if not isinstance(run_id, str) or not run_id:
         raise ContractError("run_id must be a non-empty string")
@@ -86,6 +106,9 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         max_output_bytes=output_limit,
         repeated_worlds=repeated,
         repeated_base_seed=seed,
+        container_protocol_version=1,
+        image_mode="locked",
+        shared_run_root=shared_run_root,
     )
 
 
@@ -107,12 +130,17 @@ def load_instance_settings(instance_path: Path) -> InstanceSettings:
     runtime = value.get("runtime")
     if not isinstance(submission, dict) or not isinstance(runtime, dict):
         raise ContractError("instance submission/runtime is invalid")
+    try:
+        container = load_container_contract(instance_path)
+    except ContainerContractError as exc:
+        raise ContractError(f"invalid instance container contract: {exc}") from exc
     return InstanceSettings(
         instance_id=EVALUATOR_ID,
         visible_files=tuple(visible),
         submission_filename=str(submission["filename"]),
         result_filename=str(submission["result_filename"]),
         forbidden_import_roots=tuple(runtime["forbidden_import_roots"]),
+        container=container,
     )
 
 

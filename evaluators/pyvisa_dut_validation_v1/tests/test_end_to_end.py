@@ -8,6 +8,7 @@ from instrument_benchmark_evaluator.contracts import (
     load_instance_settings,
 )
 from instrument_benchmark_evaluator.run import run_full_suite
+from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -59,6 +60,7 @@ class EndToEndTests(unittest.TestCase):
             candidate_path=REFERENCE,
             world_directory=EVALUATOR / "worlds",
             repeated_base_seed=30000,
+            backend=HostCandidateBackend(),
         )
         second = run_full_suite(
             benchmark=benchmark,
@@ -66,6 +68,7 @@ class EndToEndTests(unittest.TestCase):
             candidate_path=REFERENCE,
             world_directory=EVALUATOR / "worlds",
             repeated_base_seed=30000,
+            backend=HostCandidateBackend(),
         )
 
         self.assertTrue(first.strict_pass)
