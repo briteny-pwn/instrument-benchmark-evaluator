@@ -97,16 +97,16 @@ def build_image(
                 Path(directory),
             )
     temporary_root.mkdir(parents=True, exist_ok=True)
-    context = Path(
-        tempfile.mkdtemp(prefix="iab-image-", dir=temporary_root)
-    )
-    return _build_in_context(
-        contract,
-        client,
-        instance_id,
-        dockerfile.dockerfile_sha256,
-        context,
-    )
+    with tempfile.TemporaryDirectory(
+        prefix="iab-image-", dir=temporary_root
+    ) as directory:
+        return _build_in_context(
+            contract,
+            client,
+            instance_id,
+            dockerfile.dockerfile_sha256,
+            Path(directory),
+        )
 
 
 def _build_in_context(

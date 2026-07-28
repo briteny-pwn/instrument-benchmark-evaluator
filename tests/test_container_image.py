@@ -25,6 +25,7 @@ class FakeDockerClient:
     def __init__(self, inspect_value: dict) -> None:
         self.inspect_value = inspect_value
         self.calls: list[list[str]] = []
+        self.context_files: set[str] | None = None
 
     def image_inspect(self, image_ref: str) -> dict:
         self.calls.append(["image_inspect", image_ref])
@@ -32,6 +33,10 @@ class FakeDockerClient:
 
     def run(self, arguments, *, timeout=None, check=True):
         self.calls.append(list(arguments))
+        if arguments and arguments[0] == "buildx":
+            self.context_files = {
+                path.name for path in Path(arguments[-1]).iterdir()
+            }
         return DockerCommandResult(0, "", "")
 
 
@@ -111,9 +116,13 @@ class ContainerImageTests(unittest.TestCase):
             self.assertIn("--build-arg=SOURCE_DATE_EPOCH=0", build_call)
             context = Path(build_call[-1])
             self.assertEqual(
-                {path.name for path in context.iterdir()},
+                client.context_files,
                 {"Dockerfile", "image.lock.yaml"},
             )
+            self.assertTrue(
+                context.resolve().is_relative_to(Path(directory).resolve())
+            )
+            self.assertFalse(context.exists())
             self.assertEqual(evidence.image_id, self.contract.lock.image_digest)
 
 

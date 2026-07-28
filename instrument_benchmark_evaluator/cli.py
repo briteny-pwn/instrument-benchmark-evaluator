@@ -59,7 +59,9 @@ def main(
         backend = (
             backend_factory(instance)
             if backend_factory is not None
-            else DockerCandidateBackend.from_instance(instance)
+            else DockerCandidateBackend.from_instance(
+                instance, shared_run_root=request.shared_run_root
+            )
         )
         report = run_full_suite(
             benchmark=settings,

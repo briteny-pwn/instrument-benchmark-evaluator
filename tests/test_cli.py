@@ -142,6 +142,10 @@ class EvaluatorCliContractTests(unittest.TestCase):
                 )
             self.assertEqual(status, 3)
             construct.assert_called_once()
+            self.assertEqual(
+                construct.call_args.kwargs["shared_run_root"],
+                Path(value["shared_run_root"]).resolve(),
+            )
             self.assertFalse(report_path.exists())
 
     def test_cli_runs_reference_candidate_and_writes_report(self) -> None:

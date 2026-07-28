@@ -51,6 +51,7 @@ class DockerCandidateBackend:
         instance: InstanceSettings,
         *,
         client: DockerClient | None = None,
+        shared_run_root: Path | None = None,
     ) -> DockerCandidateBackend:
         docker = client or DockerClient()
         try:
@@ -64,6 +65,7 @@ class DockerCandidateBackend:
                 instance.container,
                 docker,
                 instance_id=instance.instance_id,
+                temporary_root=shared_run_root,
             )
         return cls(client=docker, image=image)
 
