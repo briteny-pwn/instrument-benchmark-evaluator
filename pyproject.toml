@@ -19,9 +19,9 @@ instrument-evaluator = "instrument_benchmark_evaluator.cli:main"
 include = ["instrument_benchmark_evaluator*", "evaluators*"]
 
 [tool.setuptools.package-data]
+"instrument_benchmark_evaluator" = ["evaluator.yaml"]
 "evaluators.pyvisa_dut_validation_v1" = [
   "adversarial_matrix.yaml",
   "simulator/*.yaml",
   "worlds/*.yaml",
 ]
-

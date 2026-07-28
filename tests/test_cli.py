@@ -22,6 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class EvaluatorCliContractTests(unittest.TestCase):
+    def test_packaged_evaluator_manifest_matches_repository_contract(self) -> None:
+        self.assertEqual(
+            (ROOT / "evaluator.yaml").read_bytes(),
+            (ROOT / "instrument_benchmark_evaluator" / "evaluator.yaml").read_bytes(),
+        )
+
     def valid_request(self, directory: Path) -> dict[str, object]:
         instance = directory / "instance"
         candidate = directory / "solution.py"

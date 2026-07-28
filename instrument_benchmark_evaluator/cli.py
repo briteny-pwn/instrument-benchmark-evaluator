@@ -17,9 +17,11 @@ from .contracts import (
 )
 from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .run import run_full_suite
+from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
 
 
-ROOT = Path(__file__).resolve().parents[1]
+MANIFEST = Path(__file__).with_name("evaluator.yaml")
+WORLD_DIRECTORY = Path(world_resources.__file__).resolve().parent
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -43,7 +45,7 @@ def main(
         request = load_evaluator_request(arguments.request.resolve())
         instance = load_instance_settings(request.instance_path)
         manifest = yaml.safe_load(
-            (ROOT / "evaluator.yaml").read_text(encoding="utf-8")
+            MANIFEST.read_text(encoding="utf-8")
         )
         settings = RunSettings(
             instance_path=request.instance_path,
@@ -63,10 +65,7 @@ def main(
             benchmark=settings,
             instance=instance,
             candidate_path=request.candidate_path,
-            world_directory=ROOT
-            / "evaluators"
-            / "pyvisa_dut_validation_v1"
-            / "worlds",
+            world_directory=WORLD_DIRECTORY,
             repeated_base_seed=request.repeated_base_seed,
             backend=backend,
         ).to_dict()
