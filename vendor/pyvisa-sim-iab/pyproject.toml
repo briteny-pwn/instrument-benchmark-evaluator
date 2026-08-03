@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "PyVISA-sim"
+version = "0.7.1+iab1"
+requires-python = ">=3.9"
+dependencies = ["PyVISA>=1.15", "stringparser"]
+
+[project.entry-points."pyvisa.backends"]
+sim = "pyvisa_sim.highlevel:SimVisaLibrary"
+
+[tool.setuptools.package-data]
+pyvisa_sim = ["default.yaml"]

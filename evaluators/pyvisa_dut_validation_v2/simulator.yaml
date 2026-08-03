@@ -1,0 +1,134 @@
+spec: "1.1"
+
+devices:
+  psu:
+    eom: {TCPIP INSTR: {q: "\n", r: "\n"}}
+    error: &errors
+      error_queue:
+        - q: "SYST:ERR?"
+          default: '0,"No error"'
+          command_error: '-221,"Settings conflict"'
+    dialogues:
+      - {q: "*IDN?", r: "IAB,Virtual-E36312A,PSU001,2.0"}
+      - {q: "*RST"}
+      - {q: "*CLS"}
+    properties:
+      channel:
+        default: 1
+        setter: {q: "INST:NSEL {:d}"}
+        specs: {type: int, valid: [1]}
+      voltage:
+        default: 0.0
+        getter: {q: "VOLT?", r: "{:.6f}"}
+        setter: {q: "VOLT {}"}
+        specs: {type: float, min: 0, max: 6}
+      output:
+        default: "OFF"
+        getter: {q: "OUTP?", r: "{}"}
+        setter: {q: "OUTP {}"}
+        specs: {type: str, valid: ["ON", "OFF"]}
+
+  switch:
+    eom: {GPIB INSTR: {q: "\n", r: "\n"}}
+    error: *errors
+    dialogues:
+      - {q: "*IDN?", r: "IAB,Virtual-34980A,SW001,2.0"}
+      - {q: "*RST"}
+      - {q: "*CLS"}
+      - {q: "ROUT:OPEN:ALL"}
+      - {q: "ROUT:CLOS?", r: "DYNAMIC"}
+    properties:
+      close_request:
+        default: "(@)"
+        setter: {q: "ROUT:CLOS {}"}
+        specs: {type: str}
+      open_request:
+        default: "(@)"
+        setter: {q: "ROUT:OPEN {}"}
+        specs: {type: str}
+
+  awg:
+    eom: {USB INSTR: {q: "\n", r: "\n"}}
+    error: *errors
+    dialogues:
+      - {q: "*IDN?", r: "IAB,Virtual-33512B,AWG001,2.0"}
+      - {q: "*RST"}
+      - {q: "*CLS"}
+      - {q: "STAT:OPER:COND?", r: "DYNAMIC"}
+    properties:
+      waveform_data:
+        default: ""
+        setter: {q: "DATA:ARB {}"}
+        specs: {type: str}
+      selected:
+        default: ""
+        getter: {q: "FUNC:ARB?", r: "{}"}
+        setter: {q: "FUNC:ARB {}"}
+        specs: {type: str}
+      amplitude:
+        default: 1.0
+        setter: {q: "VOLT {}"}
+        specs: {type: float, min: 0.000001}
+      offset:
+        default: 0.0
+        setter: {q: "VOLT:OFFS {}"}
+        specs: {type: float}
+      output:
+        default: "OFF"
+        getter: {q: "OUTP?", r: "{}"}
+        setter: {q: "OUTP {}"}
+        specs: {type: str, valid: ["ON", "OFF"]}
+
+  dmm:
+    eom: {USB INSTR: {q: "\n", r: "\n"}}
+    error: *errors
+    dialogues:
+      - {q: "*IDN?", r: "IAB,Virtual-DMM7510,DMM001,2.0"}
+      - {q: "*RST"}
+      - {q: "*CLS"}
+      - {q: "CONF:VOLT:DC"}
+      - {q: "INIT"}
+      - {q: "READ?", r: "DYNAMIC"}
+      - {q: "FETC?", r: "DYNAMIC"}
+    properties:
+      range:
+        default: 10.0
+        setter: {q: "VOLT:DC:RANG {}"}
+        specs: {type: float, min: 0.000001}
+      sample_count:
+        default: 1
+        setter: {q: "SAMP:COUN {:d}"}
+        specs: {type: int, min: 1, max: 10000}
+
+  scope:
+    eom: {TCPIP INSTR: {q: "\n", r: "\n"}}
+    error: *errors
+    dialogues:
+      - {q: "*IDN?", r: "IAB,Virtual-MSO44,SCOPE001,2.0"}
+      - {q: "*RST"}
+      - {q: "*CLS"}
+      - {q: "WFMOUTPRE:YMULT?", r: "0.02"}
+      - {q: "WFMOUTPRE:YOFF?", r: "0.0"}
+      - {q: "WFMOUTPRE:YZERO?", r: "0.0"}
+      - {q: "WFMOUTPRE:NR_PT?", r: "DYNAMIC"}
+      - {q: "CURVE?", r: "DYNAMIC"}
+    properties:
+      source:
+        default: "CH1"
+        setter: {q: "DATA:SOURCE {}"}
+        specs: {type: str, valid: ["CH1"]}
+      encoding:
+        default: "RIBINARY"
+        setter: {q: "DATA:ENC {}"}
+        specs: {type: str, valid: ["RIBINARY"]}
+      width:
+        default: 1
+        setter: {q: "DATA:WIDTH {:d}"}
+        specs: {type: int, valid: [1]}
+
+resources:
+  TCPIP0::192.0.2.10::inst0::INSTR: {device: psu}
+  GPIB0::9::INSTR: {device: switch}
+  USB0::0x0957::0x2C07::AWG002::0::INSTR: {device: awg}
+  TCPIP0::192.0.2.20::inst0::INSTR: {device: scope}
+  USB0::0x05E6::0x7510::DMM002::0::INSTR: {device: dmm}

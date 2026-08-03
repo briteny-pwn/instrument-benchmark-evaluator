@@ -25,3 +25,4 @@ include = ["instrument_benchmark_evaluator*", "evaluators*"]
   "simulator/*.yaml",
   "worlds/*.yaml",
 ]
+"evaluators.pyvisa_dut_validation_v2" = ["simulator.yaml"]
