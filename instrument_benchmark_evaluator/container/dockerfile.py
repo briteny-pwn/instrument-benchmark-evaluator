@@ -4,7 +4,7 @@ import hashlib
 import re
 import shlex
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from .contracts import ContainerContract, RUNTIME_USER
 from .errors import ImagePolicyError
@@ -16,11 +16,15 @@ _FORBIDDEN_BUILD_INPUTS = {
     "solution.py",
     "candidate",
     "evaluator",
+    "instrument_service",
     "oracle",
+    "pyvisa_sim",
+    "service",
     "worlds",
     "simulator",
     ".git",
 }
+_WILDCARD_CHARACTERS = frozenset("*?[")
 
 
 @dataclass(frozen=True)
@@ -66,16 +70,13 @@ def validate_dockerfile(
                 )
             base_images.append(image)
         elif instruction == "ADD":
-            if any(_REMOTE.match(item) for item in arguments[:-1]):
+            sources = _build_sources(arguments, instruction, line_number)
+            if any(_REMOTE.match(item) for item in sources):
                 raise ImagePolicyError("remote ADD is forbidden")
-            _reject_forbidden_inputs(arguments[:-1], line_number)
+            _validate_build_inputs(sources, contract, line_number)
         elif instruction == "COPY":
-            sources = [
-                item
-                for item in arguments[:-1]
-                if not item.startswith("--")
-            ]
-            _reject_forbidden_inputs(sources, line_number)
+            sources = _build_sources(arguments, instruction, line_number)
+            _validate_build_inputs(sources, contract, line_number)
         elif instruction == "USER":
             if len(arguments) != 1:
                 raise ImagePolicyError(f"invalid USER at line {line_number}")
@@ -126,4 +127,64 @@ def _reject_forbidden_inputs(sources: list[str], line_number: int) -> None:
         if lowered_parts & _FORBIDDEN_BUILD_INPUTS:
             raise ImagePolicyError(
                 f"candidate source or hidden material at line {line_number}"
+            )
+
+
+def _build_sources(
+    arguments: list[str], instruction: str, line_number: int
+) -> list[str]:
+    values = list(arguments)
+    while values and values[0].startswith("--"):
+        option = values.pop(0)
+        if option == "--from" or option.startswith("--from="):
+            raise ImagePolicyError(
+                f"COPY from build stages is forbidden at line {line_number}"
+            )
+        if not (
+            option.startswith("--chown=")
+            or option.startswith("--chmod=")
+        ):
+            raise ImagePolicyError(
+                f"unsupported {instruction} option at line {line_number}"
+            )
+    if len(values) < 2:
+        raise ImagePolicyError(
+            f"{instruction} requires a source and destination at line {line_number}"
+        )
+    if any(value.startswith("[") or value.endswith("]") for value in values):
+        raise ImagePolicyError(
+            f"JSON-form {instruction} is unsupported at line {line_number}"
+        )
+    return values[:-1]
+
+
+def _validate_build_inputs(
+    sources: list[str], contract: ContainerContract, line_number: int
+) -> None:
+    _reject_forbidden_inputs(sources, line_number)
+    declared = tuple(PurePosixPath(item) for item in contract.context_files)
+    for source in sources:
+        if any(character in source for character in _WILDCARD_CHARACTERS):
+            raise ImagePolicyError(
+                f"COPY/ADD wildcards are forbidden at line {line_number}"
+            )
+        if "\\" in source:
+            raise ImagePolicyError(
+                f"invalid build-context path at line {line_number}"
+            )
+        relative = PurePosixPath(source)
+        if (
+            relative.is_absolute()
+            or ".." in relative.parts
+            or str(relative) in {"", "."}
+        ):
+            raise ImagePolicyError(
+                f"invalid build-context path at line {line_number}"
+            )
+        if not any(
+            candidate == relative or relative in candidate.parents
+            for candidate in declared
+        ):
+            raise ImagePolicyError(
+                f"source is outside declared context at line {line_number}"
             )

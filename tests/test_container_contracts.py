@@ -33,6 +33,7 @@ class ContainerContractTests(unittest.TestCase):
         cpus: float = 1.0,
         memory_mb: int = 512,
         pids: int = 64,
+        extra_context: dict[str, bytes] | None = None,
     ) -> Path:
         dockerfile = root / "Dockerfile"
         dockerfile.write_text(DOCKERFILE, encoding="utf-8")
@@ -55,15 +56,21 @@ class ContainerContractTests(unittest.TestCase):
         lock_path = root / "image.lock.yaml"
         lock_path.write_text(yaml.safe_dump(lock, sort_keys=False), encoding="utf-8")
         lock_hash = hashlib.sha256(lock_path.read_bytes()).hexdigest()
+        context_files = {
+            "Dockerfile": dockerfile_hash,
+            "image.lock.yaml": lock_hash,
+        }
+        for relative, payload in (extra_context or {}).items():
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload)
+            context_files[relative] = hashlib.sha256(payload).hexdigest()
         instance = {
             "container": {
                 "protocol_version": protocol_version,
                 "dockerfile": "Dockerfile",
                 "lock_file": "image.lock.yaml",
-                "context_files": {
-                    "Dockerfile": dockerfile_hash,
-                    "image.lock.yaml": lock_hash,
-                },
+                "context_files": context_files,
                 "platform": platform,
                 "user": user,
                 "workdir": "/workspace",
@@ -95,6 +102,84 @@ class ContainerContractTests(unittest.TestCase):
             self.assertEqual(contract.user, "10001:10001")
             self.assertEqual(contract.limits.memory_mb, 512)
             self.assertEqual(contract.lock.runtime_user, "10001:10001")
+
+    def test_loads_audited_multi_file_candidate_context(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            contract = load_container_contract(
+                self.make_instance(
+                    Path(directory),
+                    extra_context={
+                        "pyvisa_iab/highlevel.py": b"class IABBackend:\n    pass\n",
+                        "runtime/wheelhouse/pyvisa.whl": b"public wheel",
+                    },
+                )
+            )
+            self.assertEqual(
+                set(contract.context_files),
+                {
+                    "Dockerfile",
+                    "image.lock.yaml",
+                    "pyvisa_iab/highlevel.py",
+                    "runtime/wheelhouse/pyvisa.whl",
+                },
+            )
+
+    def test_rejects_hidden_material_in_candidate_context(self) -> None:
+        forbidden = (
+            ".git/config",
+            "candidate/source.py",
+            "evaluator/config.yaml",
+            "oracle/answer.py",
+            "worlds/world.json",
+            "simulator/config.yaml",
+            "instrument_service/server.py",
+            "pyvisa_sim/devices.py",
+            "solution.py",
+            "service/simulator.yaml",
+        )
+        for relative in forbidden:
+            with self.subTest(relative=relative):
+                with tempfile.TemporaryDirectory() as directory:
+                    root = self.make_instance(
+                        Path(directory),
+                        extra_context={relative: b"hidden"},
+                    )
+                    with self.assertRaisesRegex(
+                        ContainerContractError, "hidden material"
+                    ):
+                        load_container_contract(root)
+
+    def test_rejects_directory_as_candidate_context_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.make_instance(Path(directory))
+            (root / "public_dir").mkdir()
+            value = yaml.safe_load((root / "instance.yaml").read_text())
+            value["container"]["context_files"]["public_dir"] = "0" * 64
+            (root / "instance.yaml").write_text(yaml.safe_dump(value))
+            with self.assertRaisesRegex(ContainerContractError, "regular file"):
+                load_container_contract(root)
+
+    def test_rejects_symlinked_candidate_context_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.make_instance(Path(directory))
+            link = root / "public.py"
+            link.symlink_to(root / "Dockerfile")
+            value = yaml.safe_load((root / "instance.yaml").read_text())
+            value["container"]["context_files"]["public.py"] = hashlib.sha256(
+                (root / "Dockerfile").read_bytes()
+            ).hexdigest()
+            (root / "instance.yaml").write_text(yaml.safe_dump(value))
+            with self.assertRaisesRegex(ContainerContractError, "regular file"):
+                load_container_contract(root)
+
+    def test_rejects_candidate_context_path_escape(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = self.make_instance(Path(directory))
+            value = yaml.safe_load((root / "instance.yaml").read_text())
+            value["container"]["context_files"]["../public.py"] = "0" * 64
+            (root / "instance.yaml").write_text(yaml.safe_dump(value))
+            with self.assertRaisesRegex(ContainerContractError, "path"):
+                load_container_contract(root)
 
     def test_effective_policy_never_exceeds_evaluator_maximum(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

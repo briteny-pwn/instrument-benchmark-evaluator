@@ -13,6 +13,18 @@ from .errors import ContainerContractError
 PROTOCOL_VERSION = 1
 PLATFORM = "linux/amd64"
 RUNTIME_USER = "10001:10001"
+_FORBIDDEN_CONTEXT_PARTS = {
+    ".git",
+    "candidate",
+    "evaluator",
+    "instrument_service",
+    "oracle",
+    "pyvisa_sim",
+    "service",
+    "simulator",
+    "solution.py",
+    "worlds",
+}
 
 
 @dataclass(frozen=True)
@@ -105,14 +117,19 @@ def load_container_contract(instance_root: Path) -> ContainerContract:
     context_files = value["context_files"]
     if not isinstance(context_files, dict) or not context_files:
         raise ContainerContractError("context_files must be a non-empty mapping")
-    expected_context = {
+    required_context = {
         dockerfile.relative_to(root).as_posix(),
         lock_file.relative_to(root).as_posix(),
     }
-    if set(context_files) != expected_context:
+    if not required_context.issubset(context_files):
         raise ContainerContractError("context_files must contain Dockerfile and lock")
     for relative, expected_hash in context_files.items():
-        path = _child_file(root, relative, "context file")
+        normalized = _context_relative_path(relative)
+        if {part.lower() for part in normalized.parts} & _FORBIDDEN_CONTEXT_PARTS:
+            raise ContainerContractError(
+                "context file contains candidate source or hidden material"
+            )
+        path = _child_file(root, relative, "context file", regular=True)
         _verify_hash(path, expected_hash)
     workdir = _absolute_container_path(value["workdir"], "workdir")
     gateway = _absolute_container_path(value["gateway_path"], "gateway_path")
@@ -242,16 +259,39 @@ def _load_yaml(path: Path, label: str) -> dict[str, Any]:
     return value
 
 
-def _child_file(root: Path, raw: Any, label: str) -> Path:
+def _child_file(
+    root: Path,
+    raw: Any,
+    label: str,
+    *,
+    regular: bool = False,
+) -> Path:
     if not isinstance(raw, str) or not raw:
         raise ContainerContractError(f"{label} path must be a string")
     relative = Path(raw)
     if relative.is_absolute() or ".." in relative.parts:
         raise ContainerContractError(f"{label} path escapes instance")
-    path = (root / relative).resolve()
+    unresolved = root / relative
+    current = root
+    for part in relative.parts:
+        current /= part
+        if current.is_symlink():
+            qualifier = "regular file" if regular else "file"
+            raise ContainerContractError(f"{label} path is not a {qualifier}")
+    path = unresolved.resolve()
     if not path.is_relative_to(root) or not path.is_file():
-        raise ContainerContractError(f"{label} path is not a file")
+        qualifier = "regular file" if regular else "file"
+        raise ContainerContractError(f"{label} path is not a {qualifier}")
     return path
+
+
+def _context_relative_path(raw: Any) -> PurePosixPath:
+    if not isinstance(raw, str) or not raw or "\\" in raw:
+        raise ContainerContractError("context file path must be a string")
+    relative = PurePosixPath(raw)
+    if relative.is_absolute() or ".." in relative.parts or str(relative) in {"", "."}:
+        raise ContainerContractError("context file path escapes instance")
+    return relative
 
 
 def _absolute_container_path(raw: Any, name: str) -> str:

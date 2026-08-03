@@ -21,13 +21,19 @@ INSTANCE = ROOT / "tests" / "fixtures" / "instance"
 
 
 class DockerfilePolicyTests(unittest.TestCase):
-    def contract_for(self, source: Path):
+    def contract_for(
+        self,
+        source: Path,
+        *,
+        context_files: dict[str, str] | None = None,
+    ):
         contract = load_container_contract(INSTANCE)
         digest = hashlib.sha256(source.read_bytes()).hexdigest()
         return replace(
             contract,
             dockerfile=source,
             lock=replace(contract.lock, dockerfile_sha256=digest),
+            context_files=context_files or contract.context_files,
         )
 
     def test_valid_dockerfile_returns_policy_evidence(self) -> None:
@@ -69,6 +75,53 @@ class DockerfilePolicyTests(unittest.TestCase):
             contract = self.contract_for(source)
             with self.assertRaisesRegex(ImagePolicyError, "continuation"):
                 validate_dockerfile(source, contract)
+
+    def test_copy_accepts_only_declared_regular_context_trees(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "Dockerfile"
+            source.write_text(
+                "FROM example.invalid/python@sha256:" + "1" * 64 + "\n"
+                "COPY pyvisa_iab /opt/iab/pyvisa_iab\n"
+                "COPY runtime/wheelhouse /opt/iab/wheelhouse\n"
+                "USER 10001:10001\n"
+            )
+            context = {
+                "Dockerfile": "0" * 64,
+                "image.lock.yaml": "0" * 64,
+                "pyvisa_iab/highlevel.py": "0" * 64,
+                "runtime/wheelhouse/pyvisa.whl": "0" * 64,
+            }
+            evidence = validate_dockerfile(
+                source,
+                self.contract_for(source, context_files=context),
+            )
+            self.assertEqual(evidence.final_user, "10001:10001")
+
+    def test_copy_rejects_undeclared_glob_stage_and_hidden_sources(self) -> None:
+        cases = (
+            ("COPY undeclared.py /opt/iab/\n", "declared context"),
+            ("COPY *.py /opt/iab/\n", "wildcards"),
+            ("COPY --from=builder /opt/tool /opt/tool\n", "build stages"),
+            ("COPY service /opt/iab/service\n", "hidden material"),
+        )
+        for copy_line, message in cases:
+            with self.subTest(copy_line=copy_line):
+                with tempfile.TemporaryDirectory() as directory:
+                    source = Path(directory) / "Dockerfile"
+                    source.write_text(
+                        "FROM example.invalid/python@sha256:" + "1" * 64 + "\n"
+                        + copy_line
+                        + "USER 10001:10001\n"
+                    )
+                    context = {
+                        "Dockerfile": "0" * 64,
+                        "image.lock.yaml": "0" * 64,
+                    }
+                    with self.assertRaisesRegex(ImagePolicyError, message):
+                        validate_dockerfile(
+                            source,
+                            self.contract_for(source, context_files=context),
+                        )
 
 
 if __name__ == "__main__":
