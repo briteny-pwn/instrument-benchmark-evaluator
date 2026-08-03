@@ -287,8 +287,8 @@ PyVISA-sim backend:
 | Operation | Result |
 |---|---|
 | `open_default_resource_manager` | remote resource-manager token and status |
-| `list_resources` | tuple of resource strings and status |
-| `open_bare_resource` | remote resource token and status |
+| `list_resources` | tuple of resource strings (the original sim method has no status return) |
+| `open` | remote resource token and status; called by PyVISA's frontend `open_bare_resource()` |
 | `close` | status |
 | `read` | exact bytes and status |
 | `write` | accepted byte count and status |
