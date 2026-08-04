@@ -159,6 +159,11 @@ class FakeSimRunner:
                 "awg_output": False,
                 "safe": True,
             },
+            counts={},
+            broker={},
+            open_sessions=0,
+            leaked_sessions=0,
+            safe=True,
             fatal=self.fatal,
         )
         self.events.append("sim_removed")

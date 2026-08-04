@@ -35,6 +35,9 @@ class CommandRejected(RuntimeError):
 
 
 class HookProvider(Protocol):
+    def operation_cancelled(self) -> bool:
+        raise NotImplementedError
+
     def before_command(self, context: CommandContext) -> None:
         raise NotImplementedError
 
@@ -72,3 +75,11 @@ def install_hook_provider(provider: HookProvider | None) -> None:
 
 def get_hook_provider() -> HookProvider | None:
     return _hook_provider
+
+
+def operation_cancelled() -> bool:
+    """Return whether the trusted host is finalizing the simulator."""
+
+    provider = _hook_provider
+    checker = getattr(provider, "operation_cancelled", None)
+    return bool(checker is not None and checker())

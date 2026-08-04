@@ -35,7 +35,9 @@ class VendoredPyVisaSimTests(unittest.TestCase):
                 member = f"pyvisa_sim/{relative}"
                 if member not in members or path.read_bytes() != archive.read(member):
                     changed.add(relative)
-        self.assertEqual(changed, {"devices.py", "hooks.py"})
+        self.assertEqual(
+            changed, {"devices.py", "hooks.py", "sessions/session.py"}
+        )
 
     def test_hook_order_and_atomic_rejection_remain_native(self) -> None:
         import pyvisa

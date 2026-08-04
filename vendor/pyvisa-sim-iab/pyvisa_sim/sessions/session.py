@@ -13,6 +13,7 @@ from pyvisa import attributes, constants, rname, typing
 
 from ..common import int_to_byte, logger
 from ..devices import Device
+from ..hooks import operation_cancelled
 
 S = TypeVar("S", bound="Session")
 
@@ -237,6 +238,8 @@ class MessageBasedSession(Session):
         out = bytearray()
 
         while time.monotonic() - start <= timeout:
+            if operation_cancelled():
+                return out, constants.StatusCode.error_abort
             last, end_indicator = self.device.read()
 
             out += last

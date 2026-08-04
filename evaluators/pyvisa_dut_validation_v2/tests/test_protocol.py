@@ -67,6 +67,11 @@ class TrustedProtocolTests(unittest.TestCase):
         ):
             with self.assertRaises(ProtocolError):
                 decode_wire_value(invalid)
+        nested: object = 1
+        for _ in range(17):
+            nested = {"type": "list", "items": [nested]}
+        with self.assertRaisesRegex(ProtocolError, "nesting"):
+            decode_wire_value(nested)
 
     def test_exact_response_shapes_and_ids(self) -> None:
         response = {
@@ -115,6 +120,7 @@ class TrustedProtocolTests(unittest.TestCase):
             b"{",
             b'{"version":1,"version":1}',
             b"[]",
+            b'{"value":' + b"1" * 5000 + b"}",
         )
         streams = [
             ChunkSocket([b"\x00\x00"]),
@@ -127,6 +133,36 @@ class TrustedProtocolTests(unittest.TestCase):
         for stream in streams:
             with self.assertRaises(ProtocolError):
                 recv_message(stream)
+
+    def test_request_rejects_surrogate_strings_before_broker_dispatch(self) -> None:
+        invalid = "\ud800"
+        cases = (
+            {
+                "version": 1,
+                "request_id": 1,
+                "operation": invalid,
+                "args": {},
+            },
+            {
+                "version": 1,
+                "request_id": 1,
+                "operation": "hello",
+                "args": {"value": invalid},
+            },
+        )
+        for value in cases:
+            with self.assertRaisesRegex(ProtocolError, "UTF-8"):
+                decode_request(value)
+
+    def test_request_uses_one_item_budget_across_all_arguments(self) -> None:
+        message = {
+            "version": 1,
+            "request_id": 1,
+            "operation": "hello",
+            "args": {f"key_{index}": None for index in range(2049)},
+        }
+        with self.assertRaisesRegex(ProtocolError, "too many"):
+            decode_request(message)
 
 
 if __name__ == "__main__":

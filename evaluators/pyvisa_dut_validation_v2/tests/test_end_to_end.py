@@ -127,6 +127,7 @@ class LocalCandidateBackend:
 class LocalSimRunner:
     def start(self, *, run_id, world_id, world_path, transport_dir, evidence_dir):
         self.stop = threading.Event()
+        self.stop.iab_signal = "SIGTERM"  # type: ignore[attr-defined]
         self.result_codes: list[int] = []
         endpoint = transport_dir / "visa.sock"
         self.worker = threading.Thread(
@@ -233,6 +234,7 @@ class V2EndToEndTests(unittest.TestCase):
 
     def _run_world(self, spec: WorldSpec) -> None:
         stop = threading.Event()
+        stop.iab_signal = "SIGTERM"  # type: ignore[attr-defined]
         result_code: list[int] = []
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

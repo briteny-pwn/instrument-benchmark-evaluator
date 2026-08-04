@@ -158,7 +158,11 @@ class V2DualContainerLinuxTests(unittest.TestCase):
         self.assertEqual(journal.event_count, len(journal.events))
         self.assertEqual(journal.final_hash, journal.events[-1]["event_hash"])
         self.assertEqual(journal.events[0]["kind"], "lifecycle.start")
-        self.assertEqual(journal.events[-1]["kind"], "lifecycle.finalized")
+        self.assertEqual(journal.events[-1]["kind"], "lifecycle.exit")
+        self.assertIn(
+            "lifecycle.finalized",
+            {event["kind"] for event in journal.events},
+        )
         self.assertTrue(journal.post_cleanup_snapshot["safe"])
         return execution
 

@@ -12,6 +12,8 @@ from typing import Any, TypeAlias
 
 PROTOCOL_VERSION = 1
 MAX_FRAME_BYTES = 1_048_576
+MAX_WIRE_DEPTH = 16
+MAX_WIRE_ITEMS = 4096
 WireValue: TypeAlias = (
     None | bool | int | float | str | bytes | tuple["WireValue", ...]
 )
@@ -36,7 +38,10 @@ class RemoteVisaError(Exception):
 
 
 def encode_wire_value(value: WireValue) -> object:
-    if value is None or isinstance(value, (bool, int, str)):
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, str):
+        _require_utf8(value)
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
@@ -55,8 +60,23 @@ def encode_wire_value(value: WireValue) -> object:
     raise ProtocolError("unsupported wire value")
 
 
-def decode_wire_value(value: object) -> WireValue:
-    if value is None or isinstance(value, (bool, int, str)):
+def decode_wire_value(
+    value: object,
+    *,
+    _depth: int = 0,
+    _budget: list[int] | None = None,
+) -> WireValue:
+    if _depth > MAX_WIRE_DEPTH:
+        raise ProtocolError("wire value nesting is too deep")
+    if _budget is None:
+        _budget = [MAX_WIRE_ITEMS]
+    _budget[0] -= 1
+    if _budget[0] < 0:
+        raise ProtocolError("wire value contains too many items")
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, str):
+        _require_utf8(value)
         return value
     if isinstance(value, float):
         if not math.isfinite(value):
@@ -79,7 +99,12 @@ def decode_wire_value(value: object) -> WireValue:
             value["items"], list
         ):
             raise ProtocolError("invalid list value")
-        return tuple(decode_wire_value(item) for item in value["items"])
+        return tuple(
+            decode_wire_value(
+                item, _depth=_depth + 1, _budget=_budget
+            )
+            for item in value["items"]
+        )
     raise ProtocolError("unknown wire value tag")
 
 
@@ -92,10 +117,13 @@ def encode_request(
         raise ProtocolError("invalid request ID")
     if not isinstance(operation, str) or not operation:
         raise ProtocolError("invalid operation")
+    _require_utf8(operation)
     if not isinstance(args, Mapping) or not all(
         isinstance(key, str) and key for key in args
     ):
         raise ProtocolError("invalid request arguments")
+    for key in args:
+        _require_utf8(key)
     return encode_message(
         {
             "version": PROTOCOL_VERSION,
@@ -130,16 +158,22 @@ def decode_request(
     operation = message["operation"]
     if not isinstance(operation, str) or not operation:
         raise ProtocolError("invalid operation")
+    _require_utf8(operation)
     raw_args = message["args"]
     if not isinstance(raw_args, dict) or not all(
         isinstance(key, str) and key for key in raw_args
     ):
         raise ProtocolError("invalid request arguments")
-    return (
-        request_id,
-        operation,
-        {key: decode_wire_value(value) for key, value in raw_args.items()},
-    )
+    for key in raw_args:
+        _require_utf8(key)
+    budget = [MAX_WIRE_ITEMS]
+    decoded: dict[str, WireValue] = {}
+    for key, value in raw_args.items():
+        budget[0] -= 1
+        if budget[0] < 0:
+            raise ProtocolError("request contains too many argument items")
+        decoded[key] = decode_wire_value(value, _budget=budget)
+    return request_id, operation, decoded
 
 
 def decode_response(
@@ -255,7 +289,7 @@ def recv_message(stream: Any) -> dict[str, object]:
             object_pairs_hook=_unique_object,
             parse_constant=_reject_json_constant,
         )
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+    except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise ProtocolError("invalid JSON payload") from exc
     if not isinstance(message, dict):
         raise ProtocolError("message must be a JSON object")
@@ -289,6 +323,13 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _reject_json_constant(value: str) -> None:
     raise ProtocolError(f"invalid JSON constant: {value}")
+
+
+def _require_utf8(value: str) -> None:
+    try:
+        value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ProtocolError("wire strings must be valid UTF-8") from exc
 
 
 def _valid_request_id(value: object) -> bool:

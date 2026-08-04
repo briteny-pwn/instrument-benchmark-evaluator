@@ -17,6 +17,25 @@ EVENTS_LIMIT = 16 * 1024 * 1024
 SUMMARY_LIMIT = 1024 * 1024
 FATAL_LIMIT = 64 * 1024
 HASH = re.compile(r"^[0-9a-f]{64}$")
+COUNTED_EVENTS = {
+    "connection.open": "connections_opened",
+    "connection.close": "connections_closed",
+    "connection.reject": "connections_rejected",
+    "rpc.request": "rpc_requests",
+    "rpc.result": "rpc_results",
+    "rpc.reject": "rpc_rejections",
+    "resource_query.request": "resource_queries",
+    "resource_query.result": "resource_query_results",
+    "resource_query.reject": "resource_query_rejections",
+    "session.open": "sessions_opened",
+    "session.close": "sessions_explicitly_closed",
+    "session.forced_cleanup": "sessions_forced_closed",
+    "session.invalid_access": "session_invalid_accesses",
+    "scpi.write": "scpi_writes",
+    "scpi.write_result": "scpi_write_results",
+    "scpi.read": "scpi_reads",
+    "scpi.read_result": "scpi_read_results",
+}
 
 
 @dataclass(frozen=True)
@@ -26,6 +45,11 @@ class SimJournalEvidence:
     final_hash: str | None
     pre_cleanup_snapshot: dict[str, Any] | None
     post_cleanup_snapshot: dict[str, Any] | None
+    counts: dict[str, int] | None
+    broker: dict[str, Any] | None
+    open_sessions: int | None
+    leaked_sessions: int | None
+    safe: bool | None
     fatal: dict[str, Any] | None
 
     def to_dict(self) -> dict[str, Any]:
@@ -35,6 +59,11 @@ class SimJournalEvidence:
             "final_hash": self.final_hash,
             "pre_cleanup_snapshot": self.pre_cleanup_snapshot,
             "post_cleanup_snapshot": self.post_cleanup_snapshot,
+            "counts": self.counts,
+            "broker": self.broker,
+            "open_sessions": self.open_sessions,
+            "leaked_sessions": self.leaked_sessions,
+            "safe": self.safe,
             "fatal": self.fatal,
         }
 
@@ -98,6 +127,11 @@ def verify_evidence(
             final_hash=final_hash,
             pre_cleanup_snapshot=None,
             post_cleanup_snapshot=None,
+            counts=None,
+            broker=None,
+            open_sessions=None,
+            leaked_sessions=None,
+            safe=None,
             fatal=fatal,
         )
     if names != {"events.jsonl", "summary.json"}:
@@ -113,6 +147,11 @@ def verify_evidence(
         "post_cleanup_snapshot",
         "event_count",
         "final_hash",
+        "counts",
+        "open_sessions",
+        "leaked_sessions",
+        "safe",
+        "fatal",
     }
     if set(summary) != expected_keys:
         raise ContainerInfrastructureError("invalid sim summary fields")
@@ -143,24 +182,100 @@ def verify_evidence(
         or broker["frozen"] is not True
     ):
         raise ContainerInfrastructureError("invalid sim broker summary")
+    counts = _event_counts(events)
+    if summary["counts"] != counts:
+        raise ContainerInfrastructureError("sim event counts do not match journal")
+    open_sessions = (
+        counts["sessions_opened"]
+        - counts["sessions_explicitly_closed"]
+        - counts["sessions_forced_closed"]
+    )
+    if (
+        summary["open_sessions"] != open_sessions
+        or isinstance(summary["open_sessions"], bool)
+        or not isinstance(summary["open_sessions"], int)
+        or open_sessions != 0
+        or summary["leaked_sessions"] != counts["sessions_forced_closed"]
+        or summary["leaked_sessions"] != broker["leaked_sessions"]
+        or counts["connections_opened"] != broker["connections"]
+        or counts["connections_closed"] != counts["connections_opened"]
+        or counts["rpc_requests"]
+        != counts["rpc_results"] + counts["rpc_rejections"]
+        or counts["resource_queries"]
+        != counts["resource_query_results"]
+        + counts["resource_query_rejections"]
+        or summary["safe"] is not True
+        or summary["fatal"] is not None
+    ):
+        raise ContainerInfrastructureError("sim accounting summary is invalid")
+    if not _valid_rpc_boundaries(events):
+        raise ContainerInfrastructureError("sim RPC/SCPI boundaries are invalid")
     if (
         not events
         or events[0]["kind"] != "lifecycle.start"
-        or events[-1]["kind"] != "lifecycle.finalized"
+        or events[-1]["kind"] != "lifecycle.exit"
     ):
         raise ContainerInfrastructureError("sim lifecycle events are incomplete")
     kinds = [event["kind"] for event in events]
-    if (
-        kinds.count("broker.ready") != 1
-        or kinds.count("broker.frozen") != 1
-        or kinds.count("state.force_safe") != 1
+    if any(
+        kind in {"trusted.failure_detected", "trusted.fatal", "cleanup.failure"}
+        for kind in kinds
     ):
+        raise ContainerInfrastructureError("normal sim journal contains a failure")
+    required_lifecycle = (
+        "lifecycle.start",
+        "lifecycle.configuration",
+        "lifecycle.socket_bound",
+        "broker.ready",
+        "lifecycle.signal",
+        "broker.cancellation_requested",
+        "broker.frozen",
+        "cleanup.pre_snapshot",
+        "state.force_safe",
+        "cleanup.post_snapshot",
+        "lifecycle.summary",
+        "lifecycle.finalized",
+        "lifecycle.exit",
+    )
+    if any(kinds.count(kind) != 1 for kind in required_lifecycle):
         raise ContainerInfrastructureError("sim broker lifecycle events are incomplete")
-    ready_index = kinds.index("broker.ready")
+    lifecycle_indexes = [kinds.index(kind) for kind in required_lifecycle]
+    if lifecycle_indexes != sorted(lifecycle_indexes):
+        raise ContainerInfrastructureError("sim broker lifecycle ordering is invalid")
+    configuration = events[kinds.index("lifecycle.configuration")]["fields"]
+    if (
+        set(configuration) != {"world_sha256", "simulator_sha256"}
+        or not all(
+            isinstance(configuration[name], str)
+            and HASH.fullmatch(configuration[name])
+            for name in configuration
+        )
+    ):
+        raise ContainerInfrastructureError("sim configuration event is invalid")
+    socket_bound = events[kinds.index("lifecycle.socket_bound")]["fields"]
+    if (
+        socket_bound.get("endpoint_name") != "visa.sock"
+        or socket_bound.get("mode") != "0666"
+    ):
+        raise ContainerInfrastructureError("sim socket event is invalid")
+    signal_fields = events[kinds.index("lifecycle.signal")]["fields"]
+    if signal_fields != {"signal": "SIGTERM"}:
+        raise ContainerInfrastructureError("sim signal event is invalid")
+    cancellation = events[
+        kinds.index("broker.cancellation_requested")
+    ]["fields"]
+    if (
+        set(cancellation) != {"active_workers", "active_connections"}
+        or not all(
+            isinstance(cancellation[name], int)
+            and not isinstance(cancellation[name], bool)
+            and cancellation[name] >= 0
+            for name in cancellation
+        )
+    ):
+        raise ContainerInfrastructureError("sim cancellation event is invalid")
     frozen_index = kinds.index("broker.frozen")
     safe_index = kinds.index("state.force_safe")
-    if not 0 < ready_index < frozen_index < safe_index < len(events) - 1:
-        raise ContainerInfrastructureError("sim broker lifecycle ordering is invalid")
     frozen = events[frozen_index]["fields"]
     if frozen != {
         "connections": broker["connections"],
@@ -185,13 +300,34 @@ def verify_evidence(
     after = summary["post_cleanup_snapshot"]
     if not _valid_snapshot(before) or not _valid_snapshot(after):
         raise ContainerInfrastructureError("sim cleanup snapshots are invalid")
-    terminal = events[-1]["fields"]
+    pre_event = events[kinds.index("cleanup.pre_snapshot")]["fields"]
+    post_event = events[kinds.index("cleanup.post_snapshot")]["fields"]
+    summary_event = events[kinds.index("lifecycle.summary")]["fields"]
+    terminal = events[kinds.index("lifecycle.finalized")]["fields"]
     if (
-        terminal.get("pre_cleanup_snapshot") != before
+        pre_event != {"snapshot": before}
+        or post_event != {"snapshot": after}
+        or summary_event
+        != {
+            "broker": summary["broker"],
+            "counts": counts,
+            "open_sessions": 0,
+            "leaked_sessions": summary["leaked_sessions"],
+            "safe": True,
+            "fatal": None,
+        }
+        or terminal.get("pre_cleanup_snapshot") != before
         or terminal.get("post_cleanup_snapshot") != after
         or terminal.get("broker") != summary["broker"]
+        or terminal.get("counts") != counts
+        or terminal.get("open_sessions") != 0
+        or terminal.get("leaked_sessions") != summary["leaked_sessions"]
+        or terminal.get("safe") is not True
+        or terminal.get("fatal") is not None
     ):
         raise ContainerInfrastructureError("sim terminal event does not match summary")
+    if events[-1]["fields"] != {"code": 0, "safe": True}:
+        raise ContainerInfrastructureError("sim exit event is invalid")
     if after.get("safe") is not True:
         raise ContainerInfrastructureError("sim post-cleanup state is unsafe")
     return SimJournalEvidence(
@@ -200,8 +336,77 @@ def verify_evidence(
         final_hash=final_hash,
         pre_cleanup_snapshot=before,
         post_cleanup_snapshot=after,
+        counts=counts,
+        broker=broker,
+        open_sessions=0,
+        leaked_sessions=summary["leaked_sessions"],
+        safe=True,
         fatal=None,
     )
+
+
+def _event_counts(events: tuple[dict[str, Any], ...]) -> dict[str, int]:
+    counts = {name: 0 for name in COUNTED_EVENTS.values()}
+    for event in events:
+        name = COUNTED_EVENTS.get(event["kind"])
+        if name is not None:
+            counts[name] += 1
+    return counts
+
+
+def _valid_rpc_boundaries(events: tuple[dict[str, Any], ...]) -> bool:
+    tracked = {
+        "rpc.request",
+        "rpc.result",
+        "rpc.reject",
+        "scpi.write",
+        "scpi.write_result",
+        "scpi.read",
+        "scpi.read_result",
+    }
+    per_connection: dict[str, list[dict[str, Any]]] = {}
+    for event in events:
+        if event["kind"] not in tracked:
+            continue
+        connection = event["fields"].get("connection_id")
+        if not isinstance(connection, str) or not connection:
+            return False
+        per_connection.setdefault(connection, []).append(event)
+    for stream in per_connection.values():
+        operation: Any = None
+        scpi: list[str] = []
+        for event in stream:
+            kind = event["kind"]
+            if kind == "rpc.request":
+                if operation is not None:
+                    return False
+                operation = event["fields"].get("operation")
+                scpi = []
+                continue
+            if kind.startswith("scpi."):
+                if operation is None:
+                    return False
+                scpi.append(kind)
+                continue
+            if operation is None:
+                return False
+            if event["fields"].get("operation") != operation:
+                return False
+            if isinstance(operation, str) and operation in {"read", "write"}:
+                attempt = f"scpi.{operation}"
+                result = f"{attempt}_result"
+                if kind == "rpc.result":
+                    if scpi != [attempt, result]:
+                        return False
+                elif scpi not in ([], [attempt]):
+                    return False
+            elif scpi:
+                return False
+            operation = None
+            scpi = []
+        if operation is not None:
+            return False
+    return True
 
 
 def _load_events(path: Path, run_id: str, world_id: str) -> tuple[dict[str, Any], ...]:
@@ -347,13 +552,23 @@ def _valid_snapshot(value: object) -> bool:
     ):
         return False
     points = value["awg_points"]
-    if not isinstance(points, list) or not all(
-        _finite_number(point) for point in points
+    if (
+        not isinstance(points, list)
+        or len(points) > 64
+        or not all(_finite_number(point) for point in points)
     ):
         return False
-    return all(
-        _finite_number(value[key])
-        for key in ("psu_voltage_v", "awg_amplitude_vpp")
+    return (
+        value["safe"]
+        is (
+            not value["psu_output"]
+            and not value["awg_output"]
+            and not routes
+        )
+        and all(
+            _finite_number(value[key])
+            for key in ("psu_voltage_v", "awg_amplitude_vpp")
+        )
     )
 
 

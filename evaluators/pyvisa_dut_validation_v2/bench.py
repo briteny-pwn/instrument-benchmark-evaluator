@@ -27,6 +27,11 @@ from .dut import DUTSpec, DynamicDUT
 from .journal import EventJournal
 
 
+MAX_WAVEFORM_POINTS = 64
+MAX_WAVEFORMS = 8
+MAX_WAVEFORM_NAME_BYTES = 64
+
+
 class BenchContext(HookProvider):
     def __init__(
         self, definition: Path, spec: WorldSpec, journal: EventJournal
@@ -54,6 +59,7 @@ class BenchContext(HookProvider):
         self._snapshots: dict[int, dict[str, Any]] = {}
         self._session = threading.local()
         self._transient_errors_remaining = spec.transient_error_count
+        self._operation_cancelled = threading.Event()
         self._temporary = tempfile.TemporaryDirectory(prefix="iab-sim-")
         rendered = Path(self._temporary.name) / "simulator.yaml"
         try:
@@ -110,6 +116,12 @@ class BenchContext(HookProvider):
             self.force_safe()
         install_hook_provider(None)
         self._temporary.cleanup()
+
+    def cancel_operations(self) -> None:
+        self._operation_cancelled.set()
+
+    def operation_cancelled(self) -> bool:
+        return self._operation_cancelled.is_set()
 
     def force_safe(self) -> None:
         before = self.final_state()
@@ -169,11 +181,22 @@ class BenchContext(HookProvider):
                 self._reject("Waveform has not been uploaded")
         elif role == "awg" and upper.startswith("DATA:ARB "):
             try:
-                _, raw = command.split(None, 1)[1].split(",", 1)
+                name, raw = command.split(None, 1)[1].split(",", 1)
+                name = name.strip().upper()
                 points = tuple(float(value) for value in raw.split(","))
             except (ValueError, IndexError):
                 self._reject("Invalid arbitrary waveform")
-            if len(points) < 2 or not all(math.isfinite(value) for value in points):
+            if (
+                not name
+                or len(name.encode("ascii")) > MAX_WAVEFORM_NAME_BYTES
+                or len(points) < 2
+                or len(points) > MAX_WAVEFORM_POINTS
+                or not all(math.isfinite(value) for value in points)
+                or (
+                    name not in self._waveforms
+                    and len(self._waveforms) >= MAX_WAVEFORMS
+                )
+            ):
                 self._reject("Invalid arbitrary waveform")
         elif role == "awg" and upper == "OUTP ON":
             selected = str(self._property("awg", "selected")).upper()
@@ -247,7 +270,9 @@ class BenchContext(HookProvider):
             self._routes.clear()
         elif role == "awg" and upper.startswith("DATA:ARB "):
             name, raw = command.split(None, 1)[1].split(",", 1)
-            self._waveforms[name.upper()] = tuple(float(value) for value in raw.split(","))
+            self._waveforms[name.strip().upper()] = tuple(
+                float(value) for value in raw.split(",")
+            )
         elif role == "awg" and upper == "OUTP ON":
             self._stimulus_started_ns = time.monotonic_ns()
         elif role == "awg" and upper in {"OUTP OFF", "*RST"}:
