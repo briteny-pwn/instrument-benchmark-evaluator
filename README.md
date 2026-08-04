@@ -36,6 +36,16 @@ The bootstrap files are staged below the canonical shared run root so all bind
 sources are visible to the host daemon. Host evaluator execution exists only as
 an injected unit-test fixture; official orchestration has no host-backend mode.
 
+The formal v2 path splits each world into two workload siblings. The candidate
+uses ordinary `pyvisa.ResourceManager("@iab")`; the public `pyvisa_iab` backend
+forwards only PyVISA's existing low-level operations over a run-scoped Unix
+socket. A separate UID `11001:11001` sim sibling owns the hidden PyVISA-sim
+definition, DUT state, broker, and complete hash-chained event journal. Both
+siblings use `network=none`; the candidate sees only the socket directory
+read-only, while the sim sees no candidate workspace. The trusted outer
+evaluator is the sole holder of Docker authority and removes the candidate
+before finalizing and removing the sim.
+
 This nested-container architecture is supported only on native Linux Docker.
 Outer failures to build, start, use the daemon, finish, or produce a safe report
 are retry-eligible infrastructure failures rather than candidate failures.
@@ -43,8 +53,11 @@ are retry-eligible infrastructure failures rather than candidate failures.
 Run local tests with:
 
 ```bash
-python -m unittest discover -s tests -v
-python -m unittest discover -s evaluators/pyvisa_dut_validation_v1/tests -v
+PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover -s tests -v
+PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
+  -s evaluators/pyvisa_dut_validation_v1/tests -v
+PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
+  -s evaluators/pyvisa_dut_validation_v2/tests -v
 ```
 
 Native Linux Docker checks are opt-in locally and mandatory in CI:
@@ -53,5 +66,6 @@ Native Linux Docker checks are opt-in locally and mandatory in CI:
 IAB_RUN_DOCKER_TESTS=1 python -m unittest \
   tests.integration.test_container_image_linux \
   tests.integration.test_container_isolation_linux \
-  tests.integration.test_docker_full_suite_linux -v
+  tests.integration.test_docker_full_suite_linux \
+  tests.integration.test_v2_dual_container_linux -v
 ```

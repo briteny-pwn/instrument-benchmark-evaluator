@@ -147,6 +147,7 @@ class SimContainerRunnerTests(unittest.TestCase):
                 f"--name={handle.name}",
                 "--label=iab.managed=true",
                 "--label=iab.role=sim",
+                "--label=iab.owner=run",
                 "--label=iab.run=run",
                 "--label=iab.world=world",
                 "--network=none",

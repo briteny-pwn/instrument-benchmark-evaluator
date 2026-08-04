@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import secrets
 import time
@@ -217,6 +218,7 @@ def _create_arguments(
         f"--name={name}",
         "--label=iab.managed=true",
         "--label=iab.role=sim",
+        f"--label=iab.owner={os.environ.get('IAB_CONTAINER_OWNER', run_id)}",
         f"--label=iab.run={run_id}",
         f"--label=iab.world={world_id}",
         "--network=none",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,11 +9,17 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[3]
 VENDOR = ROOT / "vendor" / "pyvisa-sim-iab" / "pyvisa_sim"
+LOCAL_INSTRUMENT = ROOT.parent / "instrument"
+NESTED_INSTRUMENT = ROOT / "instrument"
+INSTRUMENT = Path(
+    os.environ.get(
+        "IAB_INSTRUMENT_ROOT",
+        LOCAL_INSTRUMENT if LOCAL_INSTRUMENT.is_dir() else NESTED_INSTRUMENT,
+    )
+)
 UPSTREAM_WHEEL = (
-    ROOT.parent
-    / "instance"
-    / "pyvisa_dut_validation_v2"
-    / "service"
+    INSTRUMENT
+    / "container"
     / "wheelhouse"
     / "pyvisa_sim-0.7.1-py3-none-any.whl"
 )
