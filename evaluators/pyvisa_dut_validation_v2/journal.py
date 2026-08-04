@@ -51,7 +51,7 @@ class EventJournal:
         self.run_id = run_id
         self.world_id = world_id
         self._events: list[JournalEvent] = []
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     @property
     def events(self) -> tuple[JournalEvent, ...]:
