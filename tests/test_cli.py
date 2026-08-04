@@ -22,6 +22,73 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class EvaluatorCliContractTests(unittest.TestCase):
+    def test_serve_sim_dispatches_absolute_paths_and_exact_status(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            world = root / "world.json"
+            endpoint = root / "transport" / "visa.sock"
+            evidence = root / "evidence"
+            simulator = root / "simulator.yaml"
+            with patch(
+                "instrument_benchmark_evaluator.cli._serve_sim",
+                return_value=17,
+            ) as serve:
+                status = main(
+                    [
+                        "serve-sim",
+                        "--world",
+                        str(world),
+                        "--endpoint",
+                        str(endpoint),
+                        "--evidence",
+                        str(evidence),
+                        "--simulator",
+                        str(simulator),
+                        "--run-id",
+                        "run-17",
+                    ]
+                )
+            self.assertEqual(status, 17)
+            serve.assert_called_once_with(
+                [
+                    "--world",
+                    str(world.resolve()),
+                    "--endpoint",
+                    str(endpoint.resolve()),
+                    "--evidence",
+                    str(evidence.resolve()),
+                    "--simulator",
+                    str(simulator.resolve()),
+                    "--run-id",
+                    "run-17",
+                ]
+            )
+
+    def test_serve_sim_uses_packaged_simulator_when_not_overridden(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch(
+                "instrument_benchmark_evaluator.cli._serve_sim",
+                return_value=0,
+            ) as serve:
+                status = main(
+                    [
+                        "serve-sim",
+                        "--world",
+                        str(root / "world.json"),
+                        "--endpoint",
+                        str(root / "transport" / "visa.sock"),
+                        "--evidence",
+                        str(root / "evidence"),
+                        "--run-id",
+                        "run-default",
+                    ]
+                )
+            self.assertEqual(status, 0)
+            forwarded = serve.call_args.args[0]
+            self.assertNotIn("--simulator", forwarded)
+            self.assertEqual(forwarded[-2:], ["--run-id", "run-default"])
+
     def test_packaged_evaluator_manifest_matches_repository_contract(self) -> None:
         self.assertEqual(
             (ROOT / "evaluator.yaml").read_bytes(),

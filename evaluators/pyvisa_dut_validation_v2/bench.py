@@ -106,7 +106,8 @@ class BenchContext(HookProvider):
         )
 
     def close(self) -> None:
-        self.force_safe()
+        if not self.snapshot().safe:
+            self.force_safe()
         install_hook_provider(None)
         self._temporary.cleanup()
 

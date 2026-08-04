@@ -305,11 +305,13 @@ class RpcClient:
         endpoint: str,
         *,
         connector: Callable[[str], Any] = _connect_unix,
+        socket_timeout: float | None = None,
     ) -> None:
         if not isinstance(endpoint, str) or not endpoint.startswith("/"):
             raise OSError("IAB_VISA_SOCKET must be an absolute Unix socket path")
         self._endpoint = endpoint
         self._connector = connector
+        self._socket_timeout = socket_timeout
         self._connection: Any | None = None
         self._next_request_id = 1
         self._lock = threading.Lock()
@@ -323,6 +325,8 @@ class RpcClient:
             try:
                 if self._connection is None:
                     self._connection = self._connector(self._endpoint)
+                    if self._socket_timeout is not None:
+                        self._connection.settimeout(self._socket_timeout)
                 self._connection.sendall(
                     encode_request(request_id, operation, args)
                 )

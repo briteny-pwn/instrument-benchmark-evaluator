@@ -83,6 +83,27 @@ class DockerClient:
     def remove(self, container_id: str) -> DockerCommandResult:
         return self.run(["rm", "--force", container_id])
 
+    def start_detached(self, container_id: str) -> DockerCommandResult:
+        return self.run(["start", container_id])
+
+    def signal(
+        self, container_id: str, signal_name: str = "TERM"
+    ) -> DockerCommandResult:
+        return self.run(["kill", f"--signal={signal_name}", container_id])
+
+    def wait(self, container_id: str, timeout: float) -> int:
+        result = self.run(["wait", container_id], timeout=timeout)
+        value = result.stdout.strip()
+        try:
+            exit_code = int(value)
+        except ValueError as exc:
+            raise ContainerInfrastructureError(
+                "docker wait did not return an exit code"
+            ) from exc
+        if exit_code < 0:
+            raise ContainerInfrastructureError("docker wait returned invalid exit code")
+        return exit_code
+
     def start_attached(
         self,
         container_id: str,

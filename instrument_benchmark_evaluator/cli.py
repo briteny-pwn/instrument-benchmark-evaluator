@@ -30,6 +30,12 @@ def build_parser() -> argparse.ArgumentParser:
     run = subparsers.add_parser("run")
     run.add_argument("--request", type=Path, required=True)
     run.add_argument("--report", type=Path, required=True)
+    serve = subparsers.add_parser("serve-sim")
+    serve.add_argument("--world", type=Path, required=True)
+    serve.add_argument("--endpoint", type=Path, required=True)
+    serve.add_argument("--evidence", type=Path, required=True)
+    serve.add_argument("--simulator", type=Path)
+    serve.add_argument("--run-id", required=True)
     return parser
 
 
@@ -39,6 +45,21 @@ def main(
     backend_factory: Callable[[object], CandidateBackend] | None = None,
 ) -> int:
     arguments = build_parser().parse_args(argv)
+    if arguments.command == "serve-sim":
+        service_arguments = [
+            "--world",
+            str(arguments.world.resolve()),
+            "--endpoint",
+            str(arguments.endpoint.resolve()),
+            "--evidence",
+            str(arguments.evidence.resolve()),
+        ]
+        if arguments.simulator is not None:
+            service_arguments.extend(
+                ["--simulator", str(arguments.simulator.resolve())]
+            )
+        service_arguments.extend(["--run-id", arguments.run_id])
+        return _serve_sim(service_arguments)
     if arguments.command != "run":
         return 2
     try:
@@ -88,6 +109,12 @@ def main(
     except Exception as exc:
         print(f"evaluator infrastructure failure: {exc}", file=sys.stderr)
         return 3
+
+
+def _serve_sim(argv: list[str]) -> int:
+    from evaluators.pyvisa_dut_validation_v2.service import main as service_main
+
+    return service_main(argv)
 
 
 if __name__ == "__main__":

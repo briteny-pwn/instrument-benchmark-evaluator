@@ -72,6 +72,32 @@ class DockerClientTests(unittest.TestCase):
             ["docker", "rm", "--force", "abc"],
         )
 
+    def test_detached_start_signal_and_wait_use_exact_commands(self) -> None:
+        executor = RecordingExecutor(DockerCommandResult(0, "", ""))
+        client = DockerClient(executor=executor)
+        client.start_detached("abc")
+        client.signal("abc", "TERM")
+        executor.result = DockerCommandResult(0, "70\n", "")
+        self.assertEqual(client.wait("abc", 3.5), 70)
+        self.assertEqual(
+            [call["argv"] for call in executor.calls],
+            [
+                ["docker", "start", "abc"],
+                ["docker", "kill", "--signal=TERM", "abc"],
+                ["docker", "wait", "abc"],
+            ],
+        )
+        self.assertEqual(executor.calls[-1]["timeout"], 3.5)
+
+    def test_wait_rejects_malformed_or_negative_exit_code(self) -> None:
+        for output in ("not-an-integer", "-1"):
+            with self.subTest(output=output):
+                executor = RecordingExecutor(DockerCommandResult(0, output, ""))
+                with self.assertRaisesRegex(
+                    ContainerInfrastructureError, "exit code"
+                ):
+                    DockerClient(executor=executor).wait("abc", 1)
+
     def test_nonzero_command_is_typed_infrastructure_failure(self) -> None:
         executor = RecordingExecutor(
             DockerCommandResult(1, "", "daemon unavailable")
