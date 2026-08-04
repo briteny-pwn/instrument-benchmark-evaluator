@@ -197,6 +197,21 @@ class RemoteVisaBrokerTests(unittest.TestCase):
         self.broker.disconnect(self.state)
         self.assertEqual(self.bench.visalib.closed, [101])
 
+    def test_clean_peer_eof_is_normal_close_not_protocol_reject(self) -> None:
+        server, client = socket.socketpair()
+        state = self.broker.new_connection(10001, 10001, 777)
+        worker = threading.Thread(
+            target=self.broker._serve_connection,
+            args=(server, state),
+        )
+        worker.start()
+        client.close()
+        worker.join(2.0)
+        self.assertFalse(worker.is_alive())
+        kinds = [event.kind for event in self.journal.events]
+        self.assertNotIn("connection.reject", kinds)
+        self.assertEqual(kinds[-1], "connection.close")
+
     def test_readiness_uid_can_only_hello_and_bad_requests_are_not_fatal(self) -> None:
         ready = self.broker.new_connection(11001, 11001, 1)
         operations, status = self.broker.dispatch(ready, "hello", {})

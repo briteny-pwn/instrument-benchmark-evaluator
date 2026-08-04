@@ -72,8 +72,8 @@ class SimContainerRunner:
         if world_path.is_symlink() or not world_path.is_file():
             raise ContainerInfrastructureError("hidden world file is invalid")
         world_path = world_path.resolve()
-        transport_dir.mkdir(parents=True, exist_ok=False)
-        evidence_dir.mkdir(parents=True, exist_ok=False)
+        _prepare_empty_directory(transport_dir, "transport")
+        _prepare_empty_directory(evidence_dir, "evidence")
         name = _name(run_id, world_id)
         endpoint = transport_dir / "visa.sock"
         arguments = _create_arguments(
@@ -324,3 +324,15 @@ def _name(run_id: str, world_id: str) -> str:
         character if character.isalnum() or character in "_.-" else "-"
         for character in raw
     )[:128]
+
+
+def _prepare_empty_directory(path: Path, label: str) -> None:
+    if path.is_symlink():
+        raise ContainerInfrastructureError(f"sim {label} directory is invalid")
+    if path.exists():
+        if not path.is_dir() or any(path.iterdir()):
+            raise ContainerInfrastructureError(
+                f"sim {label} directory must be empty"
+            )
+        return
+    path.mkdir(parents=True, exist_ok=False)

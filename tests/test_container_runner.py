@@ -172,7 +172,7 @@ class ContainerRunnerTests(unittest.TestCase):
         (self.workspace / "solution.py").write_text("# candidate")
         (self.gateway).touch()
 
-    def invoke(self, client: FakeClient):
+    def invoke(self, client: FakeClient, *, visa_socket_env: bool = False):
         client.inspect_value["Image"] = self.contract.lock.image_digest
         if client.exit_code == 0 and not client.timeout:
             value = {"ok": True}
@@ -189,6 +189,7 @@ class ContainerRunnerTests(unittest.TestCase):
             client=client,
             run_id="run-1",
             world_id="nominal",
+            visa_socket_env=visa_socket_env,
         )
 
     def test_completed_uses_all_hardening_flags_and_cleans_up(self) -> None:
@@ -232,6 +233,27 @@ class ContainerRunnerTests(unittest.TestCase):
                 if client.remove_failure:
                     self.assertFalse(result.container_evidence.cleanup_succeeded)
                     self.assertEqual(result.candidate_status, "candidate_failure")
+
+    def test_v2_adds_only_explicit_iab_socket_environment(self) -> None:
+        v1 = FakeClient()
+        self.invoke(v1)
+        v2 = FakeClient()
+        self.invoke(v2, visa_socket_env=True)
+        v1_environment = [item for item in v1.calls[0] if item.startswith("--env=")]
+        v2_environment = [item for item in v2.calls[0] if item.startswith("--env=")]
+        self.assertEqual(v1_environment, ["--env=IAB_CONTAINER_MODE=1"])
+        self.assertEqual(
+            v2_environment,
+            [
+                "--env=IAB_CONTAINER_MODE=1",
+                "--env=IAB_VISA_SOCKET=/run/iab/visa.sock",
+            ],
+        )
+        self.assertNotIn("PYVISA_LIBRARY", " ".join(v2.calls[0]))
+        transport = next(
+            item for item in v2.calls[0] if "dst=/run/iab" in item
+        )
+        self.assertTrue(transport.endswith(",readonly"))
 
 
 if __name__ == "__main__":

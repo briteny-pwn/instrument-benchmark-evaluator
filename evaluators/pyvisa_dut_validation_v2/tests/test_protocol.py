@@ -97,6 +97,10 @@ class TrustedProtocolTests(unittest.TestCase):
         )
 
     def test_frame_rejects_partial_truncated_invalid_and_duplicate_json(self) -> None:
+        from evaluators.pyvisa_dut_validation_v2.protocol import ConnectionClosed
+
+        with self.assertRaises(ConnectionClosed):
+            recv_message(ChunkSocket([]))
         valid = b'{"args":{},"operation":"hello","request_id":1,"version":1}'
         frame = len(valid).to_bytes(4, "big") + valid
         self.assertEqual(

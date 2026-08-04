@@ -30,6 +30,7 @@ class EvaluatorRequest:
     container_protocol_version: int
     image_mode: str
     shared_run_root: Path
+    evaluator_image_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -72,12 +73,19 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         "image_mode",
         "shared_run_root",
     }
-    if not isinstance(value, dict) or set(value) != required:
+    if not isinstance(value, dict):
         raise ContractError("request fields do not match protocol version 1")
+    instance_id = value.get("instance_id")
+    if instance_id == "pyvisa_dut_validation_v1":
+        expected_fields = required
+    elif instance_id == "pyvisa_dut_validation_v2":
+        expected_fields = required | {"evaluator_image_id"}
+    else:
+        raise ContractError("unsupported instance_id")
+    if set(value) != expected_fields:
+        raise ContractError("request fields do not match evaluator protocol")
     if value["protocol_version"] != PROTOCOL_VERSION:
         raise ContractError("unsupported protocol_version")
-    if value["instance_id"] != EVALUATOR_ID:
-        raise ContractError("unsupported instance_id")
     if value["container_protocol_version"] != 1:
         raise ContractError("unsupported container_protocol_version")
     if value["image_mode"] != "locked":
@@ -96,10 +104,15 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
     run_id = value["run_id"]
     if not isinstance(run_id, str) or not run_id:
         raise ContractError("run_id must be a non-empty string")
+    evaluator_image_id = (
+        _sha256_digest(value["evaluator_image_id"], "evaluator_image_id")
+        if instance_id == "pyvisa_dut_validation_v2"
+        else None
+    )
     return EvaluatorRequest(
         protocol_version=PROTOCOL_VERSION,
         run_id=run_id,
-        instance_id=EVALUATOR_ID,
+        instance_id=instance_id,
         instance_path=instance_path,
         candidate_path=candidate_path,
         timeout_seconds=timeout,
@@ -109,19 +122,31 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         container_protocol_version=1,
         image_mode="locked",
         shared_run_root=shared_run_root,
+        evaluator_image_id=evaluator_image_id,
     )
 
 
-def load_instance_settings(instance_path: Path) -> InstanceSettings:
+def load_instance_settings(
+    instance_path: Path,
+    expected_evaluator_id: str = EVALUATOR_ID,
+) -> InstanceSettings:
     manifest_path = instance_path / "instance.yaml"
     try:
         value = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise ContractError(f"cannot load instance manifest: {exc}") from exc
-    if not isinstance(value, dict) or value.get("instance_id") != EVALUATOR_ID:
+    if (
+        expected_evaluator_id
+        not in {"pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"}
+        or not isinstance(value, dict)
+        or value.get("instance_id") != expected_evaluator_id
+    ):
         raise ContractError("instance manifest has unsupported instance_id")
     evaluator = value.get("evaluator")
-    if evaluator != {"id": EVALUATOR_ID, "protocol_version": PROTOCOL_VERSION}:
+    if evaluator != {
+        "id": expected_evaluator_id,
+        "protocol_version": PROTOCOL_VERSION,
+    }:
         raise ContractError("instance evaluator contract is incompatible")
     visible = value.get("visible_files")
     if not isinstance(visible, dict) or not visible:
@@ -135,7 +160,7 @@ def load_instance_settings(instance_path: Path) -> InstanceSettings:
     except ContainerContractError as exc:
         raise ContractError(f"invalid instance container contract: {exc}") from exc
     return InstanceSettings(
-        instance_id=EVALUATOR_ID,
+        instance_id=expected_evaluator_id,
         visible_files=tuple(visible),
         submission_filename=str(submission["filename"]),
         result_filename=str(submission["result_filename"]),
@@ -176,4 +201,15 @@ def _positive_number(raw: Any, name: str) -> float:
 def _positive_int(raw: Any, name: str) -> int:
     if isinstance(raw, bool) or not isinstance(raw, int) or raw <= 0:
         raise ContractError(f"{name} must be a positive integer")
+    return raw
+
+
+def _sha256_digest(raw: Any, name: str) -> str:
+    if not isinstance(raw, str) or not raw.startswith("sha256:"):
+        raise ContractError(f"{name} must be a sha256 image ID")
+    digest = raw.removeprefix("sha256:")
+    if len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise ContractError(f"{name} must contain 64 lowercase hex characters")
     return raw

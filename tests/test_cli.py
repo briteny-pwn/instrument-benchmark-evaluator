@@ -131,6 +131,38 @@ class EvaluatorCliContractTests(unittest.TestCase):
                 (root / "s").resolve(),
             )
 
+    def test_v2_request_requires_exact_evaluator_image_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            value["instance_id"] = "pyvisa_dut_validation_v2"
+            value["evaluator_image_id"] = "sha256:" + "a" * 64
+            path = root / "request.json"
+            path.write_text(json.dumps(value))
+            request = load_evaluator_request(path)
+            self.assertEqual(request.evaluator_image_id, "sha256:" + "a" * 64)
+
+            for invalid in (None, "sha256:" + "A" * 64, "sha256:1234"):
+                with self.subTest(invalid=invalid):
+                    changed = dict(value)
+                    if invalid is None:
+                        changed.pop("evaluator_image_id")
+                    else:
+                        changed["evaluator_image_id"] = invalid
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaises(ContractError):
+                        load_evaluator_request(path)
+
+    def test_v1_request_rejects_v2_image_field(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            value["evaluator_image_id"] = "sha256:" + "a" * 64
+            path = root / "request.json"
+            path.write_text(json.dumps(value))
+            with self.assertRaises(ContractError):
+                load_evaluator_request(path)
+
     def test_request_rejects_relative_shared_run_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -252,6 +284,63 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertTrue(report["strict_pass"])
             self.assertEqual(report["evaluator"]["protocol_version"], 1)
             self.assertEqual(len(report["worlds"]), 10)
+
+    def test_cli_dispatches_v2_with_exact_image_id_and_schema_two(self) -> None:
+        instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v2"
+        candidate = (
+            ROOT
+            / "evaluators"
+            / "pyvisa_dut_validation_v2"
+            / "reference"
+            / "solution.py"
+        )
+
+        class Report:
+            def to_dict(self):
+                return {"schema_version": 2, "strict_pass": True, "worlds": []}
+
+        backend = object()
+        sim_runner = object()
+        image_id = "sha256:" + "b" * 64
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            request_path = root / "request.json"
+            report_path = root / "report.json"
+            value = self.valid_request(root)
+            value.update(
+                {
+                    "instance_id": "pyvisa_dut_validation_v2",
+                    "instance_path": str(instance),
+                    "candidate_path": str(candidate),
+                    "evaluator_image_id": image_id,
+                }
+            )
+            request_path.write_text(json.dumps(value))
+            with patch(
+                "instrument_benchmark_evaluator.v2_run.run_v2_full_suite",
+                return_value=Report(),
+            ) as run:
+                status = main(
+                    [
+                        "run",
+                        "--request",
+                        str(request_path),
+                        "--report",
+                        str(report_path),
+                    ],
+                    backend_factory=lambda settings: backend,
+                    sim_runner_factory=lambda exact_image_id: (
+                        self.assertEqual(exact_image_id, image_id) or sim_runner
+                    ),
+                )
+            self.assertEqual(status, 0)
+            self.assertIs(run.call_args.kwargs["backend"], backend)
+            self.assertIs(run.call_args.kwargs["sim_runner"], sim_runner)
+            report = json.loads(report_path.read_text())
+            self.assertEqual(report["schema_version"], 2)
+            self.assertEqual(
+                report["evaluator"]["id"], "pyvisa_dut_validation_v2"
+            )
 
 
 if __name__ == "__main__":

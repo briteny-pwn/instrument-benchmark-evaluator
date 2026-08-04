@@ -21,6 +21,10 @@ class ProtocolError(ValueError):
     """The peer sent data outside the closed public wire protocol."""
 
 
+class ConnectionClosed(EOFError):
+    """The peer cleanly closed between complete protocol frames."""
+
+
 class RemoteVisaError(Exception):
     """A controlled error response returned by the trusted broker."""
 
@@ -239,7 +243,7 @@ def encode_message(message: Mapping[str, object]) -> bytes:
 
 
 def recv_message(stream: Any) -> dict[str, object]:
-    header = _recv_exact(stream, 4)
+    header = _recv_exact(stream, 4, allow_clean_eof=True)
     length = int.from_bytes(header, "big")
     if length == 0 or length > MAX_FRAME_BYTES:
         raise ProtocolError("invalid frame length")
@@ -258,12 +262,16 @@ def recv_message(stream: Any) -> dict[str, object]:
     return message
 
 
-def _recv_exact(stream: Any, count: int) -> bytes:
+def _recv_exact(
+    stream: Any, count: int, *, allow_clean_eof: bool = False
+) -> bytes:
     chunks: list[bytes] = []
     remaining = count
     while remaining:
         chunk = stream.recv(remaining)
         if not chunk:
+            if allow_clean_eof and not chunks:
+                raise ConnectionClosed("peer closed between frames")
             raise ProtocolError("truncated frame")
         chunks.append(chunk)
         remaining -= len(chunk)
@@ -334,7 +342,7 @@ class RpcClient:
                 return decode_response(response, request_id)
             except RemoteVisaError:
                 raise
-            except (OSError, ProtocolError):
+            except (OSError, ProtocolError, ConnectionClosed):
                 self._drop_connection()
                 raise
 

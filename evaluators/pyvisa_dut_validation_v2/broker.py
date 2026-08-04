@@ -23,6 +23,7 @@ from pyvisa_sim.hooks import CommandRejected
 
 from .journal import EventJournal
 from .protocol import (
+    ConnectionClosed,
     ProtocolError,
     WireValue,
     decode_request,
@@ -278,6 +279,8 @@ class RemoteVisaBroker:
                             request_id, exc.kind, exc.code, exc.message
                         )
                     connection.sendall(encode_message(response))
+                except ConnectionClosed:
+                    break
                 except ProtocolError as exc:
                     self.journal.append(
                         "connection.reject",

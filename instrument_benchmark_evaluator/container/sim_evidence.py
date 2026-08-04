@@ -28,6 +28,16 @@ class SimJournalEvidence:
     post_cleanup_snapshot: dict[str, Any] | None
     fatal: dict[str, Any] | None
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "events": [dict(event) for event in self.events],
+            "event_count": self.event_count,
+            "final_hash": self.final_hash,
+            "pre_cleanup_snapshot": self.pre_cleanup_snapshot,
+            "post_cleanup_snapshot": self.post_cleanup_snapshot,
+            "fatal": self.fatal,
+        }
+
 
 def verify_evidence(
     directory: Path, *, run_id: str, world_id: str

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import secrets
 import os
+import secrets
 import time
 import base64
 import hashlib
@@ -42,6 +42,7 @@ def run_container(
     run_id: str,
     world_id: str,
     expected_output_uid: int | None = None,
+    visa_socket_env: bool = False,
 ) -> ContainerProcessResult:
     name = _container_name(run_id, world_id)
     container_id: str | None = None
@@ -70,6 +71,7 @@ def run_container(
                 name=name,
                 run_id=run_id,
                 world_id=world_id,
+                visa_socket_env=visa_socket_env,
             )
         )
         container_id = created.stdout.strip()
@@ -165,10 +167,11 @@ def _create_arguments(
     name: str,
     run_id: str,
     world_id: str,
+    visa_socket_env: bool = False,
 ) -> list[str]:
     solution = f"{contract.workdir}/solution.py"
     returned = str(Path(contract.output_path).with_name("return.json"))
-    return [
+    arguments = [
         "create",
         f"--name={name}",
         "--label=iab.managed=true",
@@ -203,12 +206,19 @@ def _create_arguments(
             "uid=10001,gid=10001,mode=0770,"
             f"size={max(policy.stdout_bytes, policy.stderr_bytes) * 4}"
         ),
-        image_digest,
-        solution,
-        contract.gateway_path,
-        contract.output_path,
-        returned,
     ]
+    if visa_socket_env:
+        arguments.append("--env=IAB_VISA_SOCKET=/run/iab/visa.sock")
+    arguments.extend(
+        [
+            image_digest,
+            solution,
+            contract.gateway_path,
+            contract.output_path,
+            returned,
+        ]
+    )
+    return arguments
 
 
 def _container_name(run_id: str, world_id: str) -> str:

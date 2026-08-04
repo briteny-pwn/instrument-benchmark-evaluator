@@ -130,6 +130,8 @@ class SimContainerRunnerTests(unittest.TestCase):
 
     def test_start_uses_exact_hardened_sibling_arguments(self) -> None:
         client = FakeDockerClient()
+        self.transport.mkdir()
+        self.evidence.mkdir()
         handle = self.runner(client).start(
             run_id="run",
             world_id="world",

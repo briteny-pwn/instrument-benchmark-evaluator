@@ -83,7 +83,13 @@ class DockerCandidateBackend:
     ) -> ContainerProcessResult:
         del candidate_path
         output_dir = workspace.parent / "output"
-        output_dir.mkdir(mode=0o777)
+        if output_dir.exists() and (
+            not output_dir.is_dir() or any(output_dir.iterdir())
+        ):
+            raise ContainerInfrastructureError(
+                "candidate output directory is invalid"
+            )
+        output_dir.mkdir(mode=0o777, exist_ok=True)
         output_dir.chmod(0o777)
         staged_runner = _stage_runner(self.runner_dir, workspace.parent / "runner")
         return run_container(
@@ -105,6 +111,7 @@ class DockerCandidateBackend:
             run_id=run_id,
             world_id=world_id,
             expected_output_uid=10001,
+            visa_socket_env=(instance.instance_id == "pyvisa_dut_validation_v2"),
         )
 
 
