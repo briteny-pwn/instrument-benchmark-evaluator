@@ -19,6 +19,7 @@ from pyvisa.constants import (
     ResourceAttribute,
     StatusCode,
 )
+from pyvisa_sim.hooks import CommandRejected
 
 from .journal import EventJournal
 from .protocol import (
@@ -153,6 +154,12 @@ class RemoteVisaBroker:
         except errors.VisaIOError as exc:
             rejection = CandidateRequestError(
                 "visa_error", int(exc.error_code), "VISA operation failed"
+            )
+            self._record_reject(state, operation, rejection)
+            raise rejection from None
+        except CommandRejected as exc:
+            rejection = CandidateRequestError(
+                "visa_error", exc.code, "VISA operation failed"
             )
             self._record_reject(state, operation, rejection)
             raise rejection from None

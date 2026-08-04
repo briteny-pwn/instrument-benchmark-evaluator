@@ -46,6 +46,7 @@ class EvidenceEvent:
     outcome: str
     error_code: str | None
     cleanup_source: str | None
+    source_sequence: int | None = None
 
 
 class EventJournal:
