@@ -136,3 +136,10 @@ def test_real_openfibsem_runtime_import_reports_pinned_source() -> None:
     from evaluators.fibsem_liftout_v1.backend import openfibsem_source_commit
 
     assert openfibsem_source_commit() == PINNED
+
+
+def test_openfibsem_runtime_uses_headless_ray_tracing() -> None:
+    from evaluators.fibsem_liftout_v1.backend import _OpenFibsemRuntime
+
+    assert _OpenFibsemRuntime.use_ray_tracing is True
+    assert _OpenFibsemRuntime.ray_tracing_cpu_threads == 0

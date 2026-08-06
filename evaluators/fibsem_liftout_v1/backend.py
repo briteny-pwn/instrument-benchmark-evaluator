@@ -565,6 +565,8 @@ def openfibsem_source_commit() -> str:
 
 class _OpenFibsemRuntime:
     source_commit = OPENFIBSEM_COMMIT
+    use_ray_tracing = True
+    ray_tracing_cpu_threads = 0
 
     def __init__(self, scenario: ScenarioSpec, parts: tuple[MeshPart, ...]):
         from fibsem import utils  # type: ignore[import-not-found]
@@ -592,7 +594,8 @@ class _OpenFibsemRuntime:
             clear_after_cut=False,
             check_collision=False,
             use_ssao=False,
-            use_rt=False,
+            use_rt=self.use_ray_tracing,
+            rt_cpu_threads=self.ray_tracing_cpu_threads,
             patterning_sleep=-1.0,
             manipulator_retract_pos=FibsemManipulatorPosition(
                 x=f"{needle[0]} um", y=f"{needle[1]} um", z=f"{needle[2]} um"
