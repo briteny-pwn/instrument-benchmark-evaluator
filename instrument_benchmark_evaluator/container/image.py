@@ -54,15 +54,16 @@ def resolve_image(
             f"image user must be {contract.user}, got {user}"
         )
     labels = config.get("Labels")
-    if not isinstance(labels, dict):
-        raise ImagePolicyError("image labels are missing")
-    if labels.get("iab.instance") != instance_id:
-        raise ImagePolicyError("image instance label does not match instance")
-    if (
-        labels.get("iab.dockerfile-sha256")
-        != dockerfile.dockerfile_sha256
-    ):
-        raise ImagePolicyError("image Dockerfile label does not match lock")
+    if labels is not None:
+        if not isinstance(labels, dict):
+            raise ImagePolicyError("image labels are invalid")
+        if labels.get("iab.instance") != instance_id:
+            raise ImagePolicyError("image instance label does not match instance")
+        if (
+            labels.get("iab.dockerfile-sha256")
+            != dockerfile.dockerfile_sha256
+        ):
+            raise ImagePolicyError("image Dockerfile label does not match lock")
     repo_digests = inspected.get("RepoDigests") or []
     if not isinstance(repo_digests, list) or not all(
         isinstance(value, str) for value in repo_digests
@@ -86,14 +87,13 @@ def build_image(
     instance_id: str,
     temporary_root: Path | None = None,
 ) -> ImageEvidence:
-    dockerfile = validate_dockerfile(contract.dockerfile, contract)
+    validate_dockerfile(contract.dockerfile, contract)
     if temporary_root is None:
         with tempfile.TemporaryDirectory(prefix="iab-image-") as directory:
             return _build_in_context(
                 contract,
                 client,
                 instance_id,
-                dockerfile.dockerfile_sha256,
                 Path(directory),
             )
     temporary_root.mkdir(parents=True, exist_ok=True)
@@ -104,7 +104,6 @@ def build_image(
             contract,
             client,
             instance_id,
-            dockerfile.dockerfile_sha256,
             Path(directory),
         )
 
@@ -113,7 +112,6 @@ def _build_in_context(
     contract: ContainerContract,
     client: DockerClient,
     instance_id: str,
-    dockerfile_sha256: str,
     context: Path,
 ) -> ImageEvidence:
     for relative in contract.context_files:
@@ -123,17 +121,10 @@ def _build_in_context(
         shutil.copy2(source, target)
     client.run(
         [
-            "buildx",
             "build",
-            "--load",
-            "--provenance=false",
             "--build-arg=SOURCE_DATE_EPOCH=0",
             "--network=none",
             f"--platform={contract.platform}",
-            "--label",
-            f"iab.instance={instance_id}",
-            "--label",
-            f"iab.dockerfile-sha256={dockerfile_sha256}",
             "--tag",
             contract.lock.image_reference,
             "--file",

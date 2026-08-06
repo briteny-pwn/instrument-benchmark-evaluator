@@ -33,7 +33,7 @@ class FakeDockerClient:
 
     def run(self, arguments, *, timeout=None, check=True):
         self.calls.append(list(arguments))
-        if arguments and arguments[0] == "buildx":
+        if arguments and arguments[0] == "build":
             self.context_files = {
                 path.name for path in Path(arguments[-1]).iterdir()
             }
@@ -75,6 +75,18 @@ class ContainerImageTests(unittest.TestCase):
             evidence.dockerfile_sha256, self.contract.lock.dockerfile_sha256
         )
 
+    def test_resolve_accepts_exact_locked_digest_without_optional_labels(self) -> None:
+        value = valid_inspect(self.contract)
+        value["Config"]["Labels"] = None
+
+        evidence = resolve_image(
+            self.contract,
+            FakeDockerClient(value),
+            instance_id="pyvisa_dut_validation_v1",
+        )
+
+        self.assertEqual(evidence.image_id, self.contract.lock.image_digest)
+
     def test_wrong_digest_platform_user_or_label_is_rejected(self) -> None:
         mutations = (
             (("Id",), "sha256:" + "2" * 64, "digest"),
@@ -109,11 +121,12 @@ class ContainerImageTests(unittest.TestCase):
                 instance_id="pyvisa_dut_validation_v1",
                 temporary_root=Path(directory),
             )
-            build_call = next(call for call in client.calls if call[0] == "buildx")
+            build_call = next(call for call in client.calls if call[0] == "build")
             self.assertIn("--network=none", build_call)
             self.assertIn("--platform=linux/amd64", build_call)
-            self.assertIn("--provenance=false", build_call)
             self.assertIn("--build-arg=SOURCE_DATE_EPOCH=0", build_call)
+            self.assertNotIn("--load", build_call)
+            self.assertNotIn("--label", build_call)
             context = Path(build_call[-1])
             self.assertEqual(
                 client.context_files,
