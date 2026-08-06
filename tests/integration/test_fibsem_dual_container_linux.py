@@ -50,6 +50,8 @@ class FibsemDualContainerLinuxTests(unittest.TestCase):
         cls.evaluator_image = cls.builder.build(
             ROOT,
             run_id="fibsem-dual-linux",
+            source_id="openfibsem",
+            evaluator_id="fibsem_liftout_v1",
             openfibsem_checkout=OPENFIBSEM,
             openfibsem_commit=OPENFIBSEM_COMMIT,
         )

@@ -59,7 +59,10 @@ class V2DualContainerLinuxTests(unittest.TestCase):
             assets_root=INSTRUMENT / "container"
         )
         cls.evaluator_image = cls.builder.build(
-            ROOT, run_id="evaluator-v2-linux"
+            ROOT,
+            run_id="evaluator-v2-linux",
+            source_id="pyvisa",
+            evaluator_id="pyvisa_dut_validation_v2",
         )
         cls.addClassCleanup(cls.builder.remove, cls.evaluator_image)
         cls.instance = load_instance_settings(
