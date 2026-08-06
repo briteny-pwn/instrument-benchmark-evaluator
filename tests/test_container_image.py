@@ -125,7 +125,8 @@ class ContainerImageTests(unittest.TestCase):
             self.assertIn("--network=none", build_call)
             self.assertIn("--platform=linux/amd64", build_call)
             self.assertIn("--build-arg=SOURCE_DATE_EPOCH=0", build_call)
-            self.assertNotIn("--load", build_call)
+            self.assertIn("--load", build_call)
+            self.assertIn("--provenance=false", build_call)
             self.assertNotIn("--label", build_call)
             context = Path(build_call[-1])
             self.assertEqual(
