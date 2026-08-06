@@ -1,0 +1,302 @@
+{
+  "frames": {
+    "coupon": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        50.0,
+        40.0,
+        0.0
+      ],
+      "relative_to": "world"
+    },
+    "needle": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        -28.0,
+        0.0,
+        7.0
+      ],
+      "relative_to": "world"
+    },
+    "needle_approach": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        -8.5,
+        0.0,
+        0.0
+      ],
+      "relative_to": "sample"
+    },
+    "sample": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        0.0,
+        0.0,
+        5.0
+      ],
+      "relative_to": "source"
+    },
+    "source": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "relative_to": "world"
+    },
+    "target": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        -980.0,
+        0.0,
+        0.0
+      ],
+      "relative_to": "world"
+    },
+    "target_pose": {
+      "orientation_degrees": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "position_um": [
+        -9.0,
+        0.0,
+        6.0
+      ],
+      "relative_to": "target"
+    }
+  },
+  "imaging": {
+    "beams": [
+      "SEM",
+      "FIB"
+    ],
+    "hfw_um": 80.0,
+    "resolution": [
+      512,
+      512
+    ]
+  },
+  "limits": {
+    "collision_clearance_um": 0.2,
+    "manipulator_delta_um": [
+      1200.0,
+      200.0,
+      200.0
+    ],
+    "operation_timeout_seconds": 30.0,
+    "safe_approach_um": 8.0,
+    "stage_delta_um": [
+      1200.0,
+      200.0,
+      200.0
+    ]
+  },
+  "needle": {
+    "approach_frame": "needle_approach",
+    "initial_offset_um": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "joint_region": {
+      "center_um": [
+        -5.25,
+        0.0,
+        0.0
+      ],
+      "frame": "sample",
+      "size_um": [
+        3.0,
+        3.0,
+        3.0
+      ]
+    }
+  },
+  "patterning": {
+    "maximum_feature_um": 40.0,
+    "minimum_feature_um": 0.1,
+    "purposes": [
+      "preflight_cut",
+      "preflight_deposition",
+      "protection",
+      "trench",
+      "polish",
+      "u_cut",
+      "needle_joint",
+      "source_separation",
+      "target_joint",
+      "needle_separation"
+    ]
+  },
+  "sample": {
+    "attachment_face": "x_min",
+    "dimensions_um": [
+      10.5,
+      6.0,
+      7.5
+    ],
+    "protected_region": {
+      "center_um": [
+        0.0,
+        0.0,
+        3.75
+      ],
+      "frame": "sample",
+      "size_um": [
+        9.0,
+        1.5,
+        0.75
+      ]
+    },
+    "source_bridge": {
+      "center_um": [
+        5.25,
+        0.0,
+        -3.0
+      ],
+      "frame": "sample",
+      "size_um": [
+        0.75,
+        1.5,
+        1.5
+      ]
+    }
+  },
+  "scenario_id": "small",
+  "schema_version": 1,
+  "seed": 46101,
+  "target": {
+    "attachment_face": "x_max",
+    "joint_region": {
+      "center_um": [
+        -12.0,
+        0.0,
+        4.5
+      ],
+      "frame": "target",
+      "size_um": [
+        3.0,
+        4.5,
+        4.5
+      ]
+    },
+    "pose_frame": "target_pose"
+  },
+  "tolerances": {
+    "characteristic_length": "cuberoot_volume",
+    "joint": {
+      "maximum_um": 1.0,
+      "minimum_um": 0.2,
+      "relative": 0.03
+    },
+    "orientation_degrees": 5.0,
+    "position": {
+      "maximum_um": 2.0,
+      "minimum_um": 0.5,
+      "relative": 0.08
+    },
+    "safe_retraction": {
+      "maximum_um": 20.0,
+      "minimum_um": 5.0,
+      "relative": 0.5
+    }
+  },
+  "units": {
+    "angle": "degree",
+    "length": "um"
+  },
+  "work_envelopes": {
+    "preflight": {
+      "center_um": [
+        0.0,
+        0.0,
+        2.0
+      ],
+      "frame": "coupon",
+      "size_um": [
+        12.0,
+        12.0,
+        6.0
+      ]
+    },
+    "step_1": {
+      "center_um": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "frame": "sample",
+      "size_um": [
+        18.0,
+        13.5,
+        12.0
+      ]
+    },
+    "step_2": {
+      "center_um": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "frame": "sample",
+      "size_um": [
+        18.0,
+        13.5,
+        12.0
+      ]
+    },
+    "step_3": {
+      "center_um": [
+        -9.0,
+        0.0,
+        6.0
+      ],
+      "frame": "target",
+      "size_um": [
+        28.0,
+        20.0,
+        18.0
+      ]
+    },
+    "step_4": {
+      "center_um": [
+        -9.0,
+        0.0,
+        6.0
+      ],
+      "frame": "target",
+      "size_um": [
+        28.0,
+        20.0,
+        18.0
+      ]
+    }
+  }
+}

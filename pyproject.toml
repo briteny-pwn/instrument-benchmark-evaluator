@@ -7,6 +7,7 @@ name = "instrument-benchmark-evaluator"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
+  "jsonschema==4.25.1",
   "PyYAML==6.0.3",
   "PyVISA==1.16.2",
   "PyVISA-sim==0.7.1",
@@ -26,3 +27,4 @@ include = ["instrument_benchmark_evaluator*", "evaluators*"]
   "worlds/*.yaml",
 ]
 "evaluators.pyvisa_dut_validation_v2" = ["evaluator.yaml", "simulator.yaml"]
+"evaluators.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
