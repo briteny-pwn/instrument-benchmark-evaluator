@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import stat
 from pathlib import Path
 
@@ -56,6 +57,54 @@ def test_exporter_is_atomic_and_leaves_no_step_on_invalid_image(tmp_path: Path) 
 
     assert not (tmp_path / "artifacts" / "nominal" / "step_1").exists()
     assert not list(tmp_path.rglob("*.tmp"))
+
+
+def test_exporter_publishes_readable_leaves_under_restrictive_umask(
+    tmp_path: Path,
+) -> None:
+    exporter = CheckpointExporter(tmp_path)
+    image = (2, 2, bytes((0, 85, 170, 255)))
+    previous_umask = os.umask(0o077)
+    try:
+        exporter.export(
+            valid_snapshot(),
+            {"SEM": image, "FIB": image},
+            world_id="nominal",
+            journal_sequence=10,
+            journal_hash="a" * 64,
+        )
+    finally:
+        os.umask(previous_umask)
+
+    root = tmp_path / "artifacts" / "nominal" / "step_1"
+    leaves = [path for path in root.rglob("*") if path.is_file()]
+    assert leaves
+    assert all(stat.S_IMODE(path.stat().st_mode) == 0o644 for path in leaves)
+
+
+def test_exporter_sets_publishable_directory_mode_before_atomic_rename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import evaluators.fibsem_liftout_v1.checkpoint_exporter as exporter_module
+
+    observed_modes: list[int] = []
+    real_replace = os.replace
+
+    def recording_replace(source: Path, destination: Path) -> None:
+        observed_modes.append(stat.S_IMODE(Path(source).stat().st_mode))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(exporter_module.os, "replace", recording_replace)
+    image = (2, 2, bytes((0, 85, 170, 255)))
+    CheckpointExporter(tmp_path).export(
+        valid_snapshot(),
+        {"SEM": image, "FIB": image},
+        world_id="nominal",
+        journal_sequence=10,
+        journal_hash="a" * 64,
+    )
+
+    assert observed_modes == [0o777]
 
 
 def test_trusted_snapshot_rejects_self_consistent_but_wrong_component_mesh(

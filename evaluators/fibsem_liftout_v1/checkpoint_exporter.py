@@ -132,6 +132,7 @@ class CheckpointExporter:
                 + b"\n",
             )
             _fsync_directory(components)
+            temporary.chmod(0o777)
             _fsync_directory(temporary)
             evidence = validate_checkpoint_bundle(
                 temporary,
@@ -356,6 +357,7 @@ def _write_fsync(path: Path, payload: bytes) -> None:
     with path.open("xb") as stream:
         stream.write(payload)
         stream.flush()
+        os.fchmod(stream.fileno(), 0o644)
         os.fsync(stream.fileno())
 
 
