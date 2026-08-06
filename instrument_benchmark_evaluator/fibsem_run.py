@@ -5,13 +5,13 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping
 
-from evaluators.fibsem_liftout_v1.models import ScenarioSpec
-from evaluators.fibsem_liftout_v1.scenario import (
+from sources.openfibsem.fibsem_liftout_v1.models import ScenarioSpec
+from sources.openfibsem.fibsem_liftout_v1.scenario import (
     load_fixed_scenarios,
     seeded_scenarios,
 )
-from evaluators.fibsem_liftout_v1.scenario import canonical_document
-from evaluators.fibsem_liftout_v1.scoring import (
+from sources.openfibsem.fibsem_liftout_v1.scenario import canonical_document
+from sources.openfibsem.fibsem_liftout_v1.scoring import (
     FibsemEvaluationReport,
     FibsemWorldReport,
     RuntimeEvidence,
@@ -296,7 +296,7 @@ def _infrastructure_failure(
     process: CandidateProcessResult | None = None,
 ) -> FibsemWorldExecution:
     del failure
-    from evaluators.fibsem_liftout_v1.journal import EventJournal
+    from sources.openfibsem.fibsem_liftout_v1.journal import EventJournal
 
     journal = EventJournal("infrastructure", spec.scenario_id)
     terminal = TerminalEvidence(True, True, False, None)

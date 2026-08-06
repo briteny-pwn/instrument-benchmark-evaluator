@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
-from evaluators.fibsem_liftout_v1.checkpoint_exporter import CheckpointExporter
-from evaluators.fibsem_liftout_v1.journal import EventJournal
-from evaluators.fibsem_liftout_v1.models import ScenarioSpec
-from evaluators.fibsem_liftout_v1.service import FibsemService
-from evaluators.fibsem_liftout_v1.tests.fakes import RecordingBackend
+from sources.openfibsem.fibsem_liftout_v1.checkpoint_exporter import CheckpointExporter
+from sources.openfibsem.fibsem_liftout_v1.journal import EventJournal
+from sources.openfibsem.fibsem_liftout_v1.models import ScenarioSpec
+from sources.openfibsem.fibsem_liftout_v1.service import FibsemService
+from sources.openfibsem.fibsem_liftout_v1.tests.fakes import RecordingBackend
 from instrument_benchmark_evaluator.container.fibsem_sim_runner import (
     FibsemSimContainerRunner,
     _create_arguments,
@@ -138,6 +138,8 @@ def test_trusted_evidence_loader_validates_journal_geometry_and_artifacts(
     nominal = (
         Path(__file__).resolve().parents[2]
         / "instance"
+        / "sources"
+        / "openfibsem"
         / "fibsem_liftout_v1"
         / "scenarios"
         / "nominal.json"
@@ -178,6 +180,8 @@ def test_fibsem_sim_lifecycle_finalizes_evidence_before_removal(tmp_path: Path) 
     nominal = (
         Path(__file__).resolve().parents[2]
         / "instance"
+        / "sources"
+        / "openfibsem"
         / "fibsem_liftout_v1"
         / "scenarios"
         / "nominal.json"

@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from evaluators.pyvisa_dut_validation_v1.instruments import PSU_RESOURCE
-from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
+from sources.pyvisa.pyvisa_dut_validation_v1.instruments import PSU_RESOURCE
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import load_world_specs
 from instrument_benchmark_evaluator.contracts import (
     RunSettings,
     load_instance_settings,
@@ -20,7 +20,7 @@ from tests.fixtures.instance.starter.gateway_client import GatewayClient
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTANCE = ROOT / "tests" / "fixtures" / "instance"
-EVALUATOR = ROOT / "evaluators" / "pyvisa_dut_validation_v1"
+EVALUATOR = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v1"
 
 
 class UnsafeFailureBackend:

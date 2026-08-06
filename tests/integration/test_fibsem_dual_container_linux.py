@@ -24,11 +24,11 @@ from instrument_benchmark_evaluator.fibsem_run import (
 ROOT = Path(__file__).resolve().parents[2]
 SIBLINGS = ROOT.parent
 INSTANCE = Path(
-    os.environ.get("IAB_FIBSEM_INSTANCE_ROOT", SIBLINGS / "instance" / "fibsem_liftout_v1")
+    os.environ.get("IAB_FIBSEM_INSTANCE_ROOT", SIBLINGS / "instance" / "sources" / "openfibsem" / "fibsem_liftout_v1")
 )
 INSTRUMENT = Path(os.environ.get("IAB_INSTRUMENT_ROOT", SIBLINGS / "instrument"))
 OPENFIBSEM = Path(os.environ.get("IAB_OPENFIBSEM_ROOT", SIBLINGS / "fibsem"))
-EVALUATOR = ROOT / "evaluators" / "fibsem_liftout_v1"
+EVALUATOR = ROOT / "sources" / "openfibsem" / "fibsem_liftout_v1"
 REFERENCE = EVALUATOR / "reference" / "solution.py"
 PRIVATE_IMPORT = EVALUATOR / "negatives" / "private_import.py"
 FAKE_CHECKPOINT = EVALUATOR / "negatives" / "fake_checkpoint.py"

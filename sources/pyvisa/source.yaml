@@ -1,0 +1,7 @@
+schema_version: 1
+source_id: pyvisa
+display_name: PyVISA
+description: PyVISA instrument-control evaluators
+evaluators:
+  - pyvisa_dut_validation_v1
+  - pyvisa_dut_validation_v2

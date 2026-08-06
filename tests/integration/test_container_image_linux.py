@@ -12,7 +12,7 @@ from instrument_benchmark_evaluator.container.image import build_image
 
 
 ROOT = Path(__file__).resolve().parents[2]
-_default_instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v1"
+_default_instance = ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v1"
 _worktree_instance = (
     ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
 )

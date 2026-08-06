@@ -5,17 +5,17 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Mapping
 
-from evaluators.pyvisa_dut_validation_v1.gateway.journal import EventJournal
-from evaluators.pyvisa_dut_validation_v1.gateway.server import GatewayServer
-from evaluators.pyvisa_dut_validation_v1.instruments import InstrumentRack
-from evaluators.pyvisa_dut_validation_v1.models import WorldSnapshot, WorldSpec
-from evaluators.pyvisa_dut_validation_v1.scoring import (
+from sources.pyvisa.pyvisa_dut_validation_v1.gateway.journal import EventJournal
+from sources.pyvisa.pyvisa_dut_validation_v1.gateway.server import GatewayServer
+from sources.pyvisa.pyvisa_dut_validation_v1.instruments import InstrumentRack
+from sources.pyvisa.pyvisa_dut_validation_v1.models import WorldSnapshot, WorldSpec
+from sources.pyvisa.pyvisa_dut_validation_v1.scoring import (
     EvaluationReport,
     WorldReport,
     aggregate_reports,
     grade_run,
 )
-from evaluators.pyvisa_dut_validation_v1.worlds import (
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import (
     load_world_specs,
     repeated_specs,
 )

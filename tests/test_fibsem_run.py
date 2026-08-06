@@ -4,7 +4,7 @@ from pathlib import Path
 import json
 from unittest.mock import patch
 
-from evaluators.fibsem_liftout_v1.scenario import canonical_document
+from sources.openfibsem.fibsem_liftout_v1.scenario import canonical_document
 from instrument_benchmark_evaluator import bootstrap
 from instrument_benchmark_evaluator.container.bootstrap_contract import BootstrapPaths
 from instrument_benchmark_evaluator.contracts import evaluator_kind
@@ -16,11 +16,11 @@ from instrument_benchmark_evaluator.fibsem_run import (
     run_fibsem_full_suite,
 )
 from instrument_benchmark_evaluator.cli import main
-from evaluators.fibsem_liftout_v1.tests.test_scoring import world_report
+from sources.openfibsem.fibsem_liftout_v1.tests.test_scoring import world_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTANCE = ROOT.parent / "instance" / "fibsem_liftout_v1"
+INSTANCE = ROOT.parent / "instance" / "sources" / "openfibsem" / "fibsem_liftout_v1"
 
 
 def test_evaluator_kind_adds_fibsem_without_changing_pyvisa_dispatch() -> None:
@@ -103,7 +103,8 @@ def test_fibsem_bootstrap_calls_exact_four_argument_entrypoint(tmp_path: Path) -
 def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> None:
     candidate = (
         ROOT
-        / "evaluators"
+        / "sources"
+        / "openfibsem"
         / "fibsem_liftout_v1"
         / "reference"
         / "solution.py"
@@ -132,7 +133,11 @@ def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> Non
 
     class Report:
         def to_dict(self):
-            return {"schema_version": 3, "evaluator_id": "fibsem_liftout_v1"}
+            return {
+                "schema_version": 4,
+                "source_id": "openfibsem",
+                "evaluator_id": "fibsem_liftout_v1",
+            }
 
     backend, sim_runner = object(), object()
     with patch(
@@ -151,7 +156,11 @@ def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> Non
     assert run.call_args.kwargs["backend"] is backend
     assert run.call_args.kwargs["sim_runner"] is sim_runner
     written = json.loads(report_path.read_text())
-    assert written == {"schema_version": 3, "evaluator_id": "fibsem_liftout_v1"}
+    assert written == {
+        "schema_version": 4,
+        "source_id": "openfibsem",
+        "evaluator_id": "fibsem_liftout_v1",
+    }
 
 
 def test_full_suite_executes_each_world_once_in_declared_order(tmp_path: Path) -> None:
@@ -179,7 +188,7 @@ def test_full_suite_executes_each_world_once_in_declared_order(tmp_path: Path) -
             instance=load_instance_settings(
                 INSTANCE, expected_evaluator_id="fibsem_liftout_v1"
             ),
-            candidate_path=ROOT / "evaluators/fibsem_liftout_v1/reference/solution.py",
+            candidate_path=ROOT / "sources/openfibsem/fibsem_liftout_v1/reference/solution.py",
             backend=object(),
             sim_runner=object(),
             repeated_base_seed=47000,

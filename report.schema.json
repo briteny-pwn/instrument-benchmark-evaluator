@@ -4,12 +4,13 @@
   "title": "Experiment benchmark report",
   "type": "object",
   "required": [
-    "schema_version", "status", "strict_pass", "score", "dimensions",
+    "schema_version", "source_id", "status", "strict_pass", "score", "dimensions",
     "strict_gates", "evidence_confidence", "infrastructure_valid",
     "retry_eligible", "worlds"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"const": 2},
+    "source_id": {"const": "pyvisa"},
     "status": {"type": "string"},
     "strict_pass": {"type": "boolean"},
     "score": {"type": "number", "minimum": 0, "maximum": 100},

@@ -5,20 +5,20 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Mapping
 
-from evaluators.pyvisa_dut_validation_v1.models import WorldSnapshot, WorldSpec
-from evaluators.pyvisa_dut_validation_v1.scoring import (
+from sources.pyvisa.pyvisa_dut_validation_v1.models import WorldSnapshot, WorldSpec
+from sources.pyvisa.pyvisa_dut_validation_v1.scoring import (
     WorldReport,
     aggregate_reports,
     grade_run,
 )
-from evaluators.pyvisa_dut_validation_v1.worlds import repeated_specs
-from evaluators.pyvisa_dut_validation_v2.journal import JournalEvent
-from evaluators.pyvisa_dut_validation_v2.projection import project_events
-from evaluators.pyvisa_dut_validation_v2.reports import (
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import repeated_specs
+from sources.pyvisa.pyvisa_dut_validation_v2.journal import JournalEvent
+from sources.pyvisa.pyvisa_dut_validation_v2.projection import project_events
+from sources.pyvisa.pyvisa_dut_validation_v2.reports import (
     V2EvaluationReport,
     V2WorldReport,
 )
-from evaluators.pyvisa_dut_validation_v2.world_contract import dump_world
+from sources.pyvisa.pyvisa_dut_validation_v2.world_contract import dump_world
 
 from .candidate_backend import CandidateBackend, CandidateProcessResult
 from .container.runner import ContainerProcessResult

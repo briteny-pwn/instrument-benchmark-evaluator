@@ -3,11 +3,11 @@ from __future__ import annotations
 import dataclasses
 import unittest
 
-from evaluators.pyvisa_dut_validation_v1.scoring import (
+from sources.pyvisa.pyvisa_dut_validation_v1.scoring import (
     aggregate_reports,
     grade_run,
 )
-from evaluators.pyvisa_dut_validation_v1.tests.test_scoring import valid_run
+from sources.pyvisa.pyvisa_dut_validation_v1.tests.test_scoring import valid_run
 from instrument_benchmark_evaluator.container.evidence import ContainerEvidence
 from instrument_benchmark_evaluator.container.output import ArtifactEvidence
 from instrument_benchmark_evaluator.container.runner import ContainerProcessResult

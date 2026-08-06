@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import load_world_specs
 from instrument_benchmark_evaluator.candidate_backend import DockerCandidateBackend
 from instrument_benchmark_evaluator.container.docker_client import DockerClient
 from instrument_benchmark_evaluator.container.sim_runner import SimContainerRunner
@@ -22,14 +22,14 @@ ROOT = Path(__file__).resolve().parents[2]
 INSTANCE = Path(
     os.environ.get(
         "IAB_INSTANCE_V2_ROOT",
-        ROOT.parent / "instance" / "pyvisa_dut_validation_v2",
+        ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v2",
     )
 )
 INSTRUMENT = Path(
     os.environ.get("IAB_INSTRUMENT_ROOT", ROOT.parent / "instrument")
 )
-EVALUATOR = ROOT / "evaluators" / "pyvisa_dut_validation_v2"
-WORLDS = ROOT / "evaluators" / "pyvisa_dut_validation_v1" / "worlds"
+EVALUATOR = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v2"
+WORLDS = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v1" / "worlds"
 REFERENCE = EVALUATOR / "reference" / "solution.py"
 BAD_PROTOCOL = EVALUATOR / "negatives" / "bad_protocol.py"
 LEAKED_SESSIONS = EVALUATOR / "negatives" / "leaked_sessions.py"

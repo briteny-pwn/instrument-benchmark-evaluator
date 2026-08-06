@@ -9,8 +9,8 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
-from evaluators.pyvisa_dut_validation_v2.broker import OPERATIONS
-from evaluators.pyvisa_dut_validation_v2.protocol import RpcClient
+from sources.pyvisa.pyvisa_dut_validation_v2.broker import OPERATIONS
+from sources.pyvisa.pyvisa_dut_validation_v2.protocol import RpcClient
 
 from .docker_client import DockerClient
 from .errors import ContainerInfrastructureError

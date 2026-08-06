@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from evaluators.pyvisa_dut_validation_v1.oracle.reconstruct import reconstruct
-from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
-from evaluators.pyvisa_dut_validation_v2.projection import project_events
-from evaluators.pyvisa_dut_validation_v2.tests.test_projection import raw_nominal
+from sources.pyvisa.pyvisa_dut_validation_v1.oracle.reconstruct import reconstruct
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import load_world_specs
+from sources.pyvisa.pyvisa_dut_validation_v2.projection import project_events
+from sources.pyvisa.pyvisa_dut_validation_v2.tests.test_projection import raw_nominal
 from instrument_benchmark_evaluator.container.evidence import ContainerEvidence
 from instrument_benchmark_evaluator.container.errors import ContainerInfrastructureError
 from instrument_benchmark_evaluator.container.runner import ContainerProcessResult
@@ -24,9 +24,9 @@ from instrument_benchmark_evaluator.v2_run import run_v2_full_suite, run_v2_worl
 
 
 ROOT = Path(__file__).resolve().parents[1]
-INSTANCE = ROOT.parent / "instance" / "pyvisa_dut_validation_v2"
-CANDIDATE = ROOT / "evaluators" / "pyvisa_dut_validation_v2" / "reference" / "solution.py"
-WORLD_DIRECTORY = ROOT / "evaluators" / "pyvisa_dut_validation_v1" / "worlds"
+INSTANCE = ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v2"
+CANDIDATE = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v2" / "reference" / "solution.py"
+WORLD_DIRECTORY = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v1" / "worlds"
 FIXED_WORLDS = (
     "nominal",
     "reordered_resources",
@@ -192,7 +192,7 @@ class V2WorldRunTests(unittest.TestCase):
             shared_run_root=shared,
         )
 
-    def test_completed_order_layout_projection_and_schema_two_report(self) -> None:
+    def test_completed_order_layout_projection_and_schema_three_report(self) -> None:
         events = []
         backend = FakeBackend(events, self.candidate)
         sim = FakeSimRunner(events, self.raw, self.snapshot)
@@ -260,7 +260,7 @@ class V2WorldRunTests(unittest.TestCase):
                 self.assertFalse(execution.report.base.retry_eligible)
                 self.assertFalse(execution.report.base.strict_pass)
 
-    def test_sim_start_or_finalize_failure_is_retryable_schema_two(self) -> None:
+    def test_sim_start_or_finalize_failure_is_retryable_schema_three(self) -> None:
         for failure in ("start", "finalize"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
                 events = []
@@ -375,7 +375,7 @@ class V2WorldRunTests(unittest.TestCase):
         self.assertEqual(len(report.base.fixed_reports), 9)
         self.assertEqual(len(report.base.repeated_reports), 10)
         self.assertEqual(len(report.worlds), 19)
-        self.assertEqual(report.to_dict()["schema_version"], 2)
+        self.assertEqual(report.to_dict()["schema_version"], 3)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,6 @@
+schema_version: 1
+source_id: openfibsem
+display_name: OpenFIBSEM
+description: FIB-SEM simulation evaluators
+evaluators:
+  - fibsem_liftout_v1

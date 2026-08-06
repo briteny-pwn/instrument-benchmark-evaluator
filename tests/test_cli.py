@@ -11,7 +11,12 @@ from instrument_benchmark_evaluator.contracts import (
     EvaluatorRequest,
     load_evaluator_request,
 )
-from instrument_benchmark_evaluator.cli import main
+from instrument_benchmark_evaluator.cli import (
+    FIBSEM_MANIFEST,
+    MANIFEST,
+    V2_MANIFEST,
+    main,
+)
 from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
 from instrument_benchmark_evaluator.container.errors import (
     ContainerInfrastructureError,
@@ -91,9 +96,26 @@ class EvaluatorCliContractTests(unittest.TestCase):
 
     def test_packaged_evaluator_manifest_matches_repository_contract(self) -> None:
         self.assertEqual(
-            (ROOT / "evaluator.yaml").read_bytes(),
-            (ROOT / "instrument_benchmark_evaluator" / "evaluator.yaml").read_bytes(),
+            (MANIFEST, V2_MANIFEST, FIBSEM_MANIFEST),
+            (
+                ROOT
+                / "sources"
+                / "pyvisa"
+                / "pyvisa_dut_validation_v1"
+                / "evaluator.yaml",
+                ROOT
+                / "sources"
+                / "pyvisa"
+                / "pyvisa_dut_validation_v2"
+                / "evaluator.yaml",
+                ROOT
+                / "sources"
+                / "openfibsem"
+                / "fibsem_liftout_v1"
+                / "evaluator.yaml",
+            ),
         )
+        self.assertTrue(all(path.is_file() for path in (MANIFEST, V2_MANIFEST, FIBSEM_MANIFEST)))
 
     def valid_request(self, directory: Path) -> dict[str, object]:
         instance = directory / "instance"
@@ -207,7 +229,8 @@ class EvaluatorCliContractTests(unittest.TestCase):
         instance = ROOT / "tests" / "fixtures" / "instance"
         candidate = (
             ROOT
-            / "evaluators"
+            / "sources"
+            / "pyvisa"
             / "pyvisa_dut_validation_v1"
             / "reference"
             / "solution.py"
@@ -251,7 +274,8 @@ class EvaluatorCliContractTests(unittest.TestCase):
         instance = ROOT / "tests" / "fixtures" / "instance"
         candidate = (
             ROOT
-            / "evaluators"
+            / "sources"
+            / "pyvisa"
             / "pyvisa_dut_validation_v1"
             / "reference"
             / "solution.py"
@@ -285,11 +309,12 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertEqual(report["evaluator"]["protocol_version"], 1)
             self.assertEqual(len(report["worlds"]), 10)
 
-    def test_cli_dispatches_v2_with_exact_image_id_and_schema_two(self) -> None:
-        instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v2"
+    def test_cli_dispatches_v2_with_exact_image_id_and_schema_three(self) -> None:
+        instance = ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v2"
         candidate = (
             ROOT
-            / "evaluators"
+            / "sources"
+            / "pyvisa"
             / "pyvisa_dut_validation_v2"
             / "reference"
             / "solution.py"
@@ -297,7 +322,12 @@ class EvaluatorCliContractTests(unittest.TestCase):
 
         class Report:
             def to_dict(self):
-                return {"schema_version": 2, "strict_pass": True, "worlds": []}
+                return {
+                    "schema_version": 3,
+                    "source_id": "pyvisa",
+                    "strict_pass": True,
+                    "worlds": [],
+                }
 
         backend = object()
         sim_runner = object()
@@ -337,7 +367,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertIs(run.call_args.kwargs["backend"], backend)
             self.assertIs(run.call_args.kwargs["sim_runner"], sim_runner)
             report = json.loads(report_path.read_text())
-            self.assertEqual(report["schema_version"], 2)
+            self.assertEqual(report["schema_version"], 3)
             self.assertEqual(
                 report["evaluator"]["id"], "pyvisa_dut_validation_v2"
             )

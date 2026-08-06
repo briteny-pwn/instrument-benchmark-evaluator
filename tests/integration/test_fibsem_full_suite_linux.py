@@ -22,11 +22,11 @@ from instrument_benchmark_evaluator.fibsem_run import run_fibsem_full_suite
 ROOT = Path(__file__).resolve().parents[2]
 SIBLINGS = ROOT.parent
 INSTANCE = Path(
-    os.environ.get("IAB_FIBSEM_INSTANCE_ROOT", SIBLINGS / "instance" / "fibsem_liftout_v1")
+    os.environ.get("IAB_FIBSEM_INSTANCE_ROOT", SIBLINGS / "instance" / "sources" / "openfibsem" / "fibsem_liftout_v1")
 )
 INSTRUMENT = Path(os.environ.get("IAB_INSTRUMENT_ROOT", SIBLINGS / "instrument"))
 OPENFIBSEM = Path(os.environ.get("IAB_OPENFIBSEM_ROOT", SIBLINGS / "fibsem"))
-REFERENCE = ROOT / "evaluators" / "fibsem_liftout_v1" / "reference" / "solution.py"
+REFERENCE = ROOT / "sources" / "openfibsem" / "fibsem_liftout_v1" / "reference" / "solution.py"
 OPENFIBSEM_COMMIT = "2ebccb8b9721234ca66bb94de36d0f7cfe047af9"
 
 

@@ -21,16 +21,24 @@ from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .container.docker_client import DockerClient
 
 
-MANIFEST = Path(__file__).with_name("evaluator.yaml")
+MANIFEST = (
+    Path(__file__).resolve().parents[1]
+    / "sources"
+    / "pyvisa"
+    / "pyvisa_dut_validation_v1"
+    / "evaluator.yaml"
+)
 V2_MANIFEST = (
     Path(__file__).resolve().parents[1]
-    / "evaluators"
+    / "sources"
+    / "pyvisa"
     / "pyvisa_dut_validation_v2"
     / "evaluator.yaml"
 )
 FIBSEM_MANIFEST = (
     Path(__file__).resolve().parents[1]
-    / "evaluators"
+    / "sources"
+    / "openfibsem"
     / "fibsem_liftout_v1"
     / "evaluator.yaml"
 )
@@ -124,8 +132,8 @@ def main(
                 shared_run_root=request.shared_run_root,
             )
         if kind == "pyvisa_v2":
-            from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
-            from evaluators.pyvisa_dut_validation_v1.worlds import (
+            from sources.pyvisa.pyvisa_dut_validation_v1 import worlds as world_resources
+            from sources.pyvisa.pyvisa_dut_validation_v1.worlds import (
                 load_world_specs,
             )
 
@@ -173,7 +181,7 @@ def main(
                 repeated_base_seed=request.repeated_base_seed,
             ).to_dict()
         else:
-            from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
+            from sources.pyvisa.pyvisa_dut_validation_v1 import worlds as world_resources
 
             from .run import run_full_suite
 
@@ -206,7 +214,7 @@ def main(
 
 
 def _serve_sim(argv: list[str]) -> int:
-    from evaluators.pyvisa_dut_validation_v2.service import main as service_main
+    from sources.pyvisa.pyvisa_dut_validation_v2.service import main as service_main
 
     return service_main(argv)
 
@@ -214,7 +222,7 @@ def _serve_sim(argv: list[str]) -> int:
 def _serve_fibsem_sim(
     *, world: Path, endpoint: Path, evidence: Path, run_id: str
 ) -> int:
-    from evaluators.fibsem_liftout_v1.service import (
+    from sources.openfibsem.fibsem_liftout_v1.service import (
         ServiceStopRequested,
         run_service,
     )

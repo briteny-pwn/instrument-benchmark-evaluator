@@ -79,9 +79,9 @@ Run local tests with:
 ```bash
 PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover -s tests -v
 PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
-  -s evaluators/pyvisa_dut_validation_v1/tests -v
+  -s sources/pyvisa/pyvisa_dut_validation_v1/tests -v
 PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
-  -s evaluators/pyvisa_dut_validation_v2/tests -v
+  -s sources/pyvisa/pyvisa_dut_validation_v2/tests -v
 ```
 
 Native Linux Docker checks are opt-in locally and mandatory in CI:

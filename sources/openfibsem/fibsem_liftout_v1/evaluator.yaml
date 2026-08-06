@@ -1,0 +1,25 @@
+schema_version: 2
+source_id: openfibsem
+evaluator_id: fibsem_liftout_v1
+task_type: fibsem_liftout
+protocol_version: 2
+report_schema_version: 4
+container_protocol_version: 1
+candidate_execution: docker
+image_mode: locked
+supported_instances:
+  - fibsem_liftout_v1
+fixed_worlds:
+  - nominal
+  - small
+  - large
+  - needle_offset
+  - target_pose
+worlds:
+  fixed: 5
+  seeded: 5
+strict_pass:
+  fixed_required: 5
+  seeded_required: 4
+  minimum_score: 90
+openfibsem_commit: 2ebccb8b9721234ca66bb94de36d0f7cfe047af9

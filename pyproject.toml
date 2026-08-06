@@ -17,17 +17,19 @@ dependencies = [
 instrument-evaluator = "instrument_benchmark_evaluator.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["instrument_benchmark_evaluator*", "evaluators*"]
+include = ["instrument_benchmark_evaluator*", "sources*"]
 
 [tool.setuptools.package-data]
-"instrument_benchmark_evaluator" = ["evaluator.yaml"]
-"evaluators.pyvisa_dut_validation_v1" = [
+"sources.pyvisa" = ["source.yaml"]
+"sources.openfibsem" = ["source.yaml"]
+"sources.pyvisa.pyvisa_dut_validation_v1" = [
+  "evaluator.yaml",
   "adversarial_matrix.yaml",
   "simulator/*.yaml",
   "worlds/*.yaml",
 ]
-"evaluators.pyvisa_dut_validation_v2" = ["evaluator.yaml", "simulator.yaml"]
-"evaluators.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
+"sources.pyvisa.pyvisa_dut_validation_v2" = ["evaluator.yaml", "simulator.yaml"]
+"sources.openfibsem.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
 
 [tool.pytest.ini_options]
 markers = [

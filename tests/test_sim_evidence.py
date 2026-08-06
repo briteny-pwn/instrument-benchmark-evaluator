@@ -7,8 +7,8 @@ import unittest
 from dataclasses import asdict
 from pathlib import Path
 
-from evaluators.pyvisa_dut_validation_v1.models import WorldSnapshot
-from evaluators.pyvisa_dut_validation_v2.journal import EventJournal
+from sources.pyvisa.pyvisa_dut_validation_v1.models import WorldSnapshot
+from sources.pyvisa.pyvisa_dut_validation_v2.journal import EventJournal
 from instrument_benchmark_evaluator.container.errors import ContainerInfrastructureError
 from instrument_benchmark_evaluator.container.sim_evidence import (
     _valid_rpc_boundaries,

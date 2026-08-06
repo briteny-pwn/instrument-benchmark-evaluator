@@ -11,15 +11,15 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Mapping
 
-from evaluators.fibsem_liftout_v1.geometry.artifacts import (
+from sources.openfibsem.fibsem_liftout_v1.geometry.artifacts import (
     ArtifactError,
     validate_checkpoint_bundle,
 )
-from evaluators.fibsem_liftout_v1.geometry.oracle import GeometryMetrics
-from evaluators.fibsem_liftout_v1.journal import EventJournal
-from evaluators.fibsem_liftout_v1.journal import canonical_digest
-from evaluators.fibsem_liftout_v1.models import ScenarioSpec
-from evaluators.fibsem_liftout_v1.scoring import (
+from sources.openfibsem.fibsem_liftout_v1.geometry.oracle import GeometryMetrics
+from sources.openfibsem.fibsem_liftout_v1.journal import EventJournal
+from sources.openfibsem.fibsem_liftout_v1.journal import canonical_digest
+from sources.openfibsem.fibsem_liftout_v1.models import ScenarioSpec
+from sources.openfibsem.fibsem_liftout_v1.scoring import (
     CheckpointEvidence,
     TerminalEvidence,
 )

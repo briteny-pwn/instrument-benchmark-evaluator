@@ -12,11 +12,11 @@ from instrument_benchmark_evaluator.contracts import (
 )
 from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
 from instrument_benchmark_evaluator.run import run_full_suite, run_world
-from evaluators.pyvisa_dut_validation_v1.worlds import load_world_specs
+from sources.pyvisa.pyvisa_dut_validation_v1.worlds import load_world_specs
 
 
 ROOT = Path(__file__).resolve().parents[2]
-_default_instance = ROOT.parent / "instance" / "pyvisa_dut_validation_v1"
+_default_instance = ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v1"
 _worktree_instance = (
     ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
 )
@@ -26,7 +26,7 @@ INSTANCE = Path(
         _default_instance if _default_instance.is_dir() else _worktree_instance,
     )
 )
-EVALUATOR = ROOT / "evaluators" / "pyvisa_dut_validation_v1"
+EVALUATOR = ROOT / "sources" / "pyvisa" / "pyvisa_dut_validation_v1"
 REFERENCE = EVALUATOR / "reference" / "solution.py"
 FIXED = (
     "nominal",
