@@ -178,7 +178,10 @@ class V2WorldRunTests(unittest.TestCase):
         projected = project_events(self.raw)
         self.candidate = reconstruct(projected, self.spec).to_candidate_result()
         self.instance = load_instance_settings(
-            INSTANCE, expected_evaluator_id="pyvisa_dut_validation_v2"
+            INSTANCE,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v2",
+            expected_evaluator_id="pyvisa_dut_validation_v2",
         )
 
     def benchmark(self, shared: Path) -> RunSettings:

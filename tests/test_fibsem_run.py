@@ -7,8 +7,8 @@ from unittest.mock import patch
 from sources.openfibsem.fibsem_liftout_v1.scenario import canonical_document
 from instrument_benchmark_evaluator import bootstrap
 from instrument_benchmark_evaluator.container.bootstrap_contract import BootstrapPaths
-from instrument_benchmark_evaluator.contracts import evaluator_kind
 from instrument_benchmark_evaluator.contracts import RunSettings, load_instance_settings
+from instrument_benchmark_evaluator.dispatch import resolve_evaluator_target
 from instrument_benchmark_evaluator.fibsem_run import (
     FibsemWorldExecution,
     _make_host_cleanup_directories,
@@ -23,10 +23,16 @@ ROOT = Path(__file__).resolve().parents[1]
 INSTANCE = ROOT.parent / "instance" / "sources" / "openfibsem" / "fibsem_liftout_v1"
 
 
-def test_evaluator_kind_adds_fibsem_without_changing_pyvisa_dispatch() -> None:
-    assert evaluator_kind("fibsem_liftout_v1") == "fibsem"
-    assert evaluator_kind("pyvisa_dut_validation_v2") == "pyvisa_v2"
-    assert evaluator_kind("pyvisa_dut_validation_v1") == "pyvisa_v1"
+def test_composite_dispatch_preserves_all_evaluator_kinds() -> None:
+    assert resolve_evaluator_target(
+        "openfibsem", "fibsem_liftout_v1", "fibsem_liftout_v1"
+    ).kind == "fibsem"
+    assert resolve_evaluator_target(
+        "pyvisa", "pyvisa_dut_validation_v2", "pyvisa_dut_validation_v2"
+    ).kind == "pyvisa_v2"
+    assert resolve_evaluator_target(
+        "pyvisa", "pyvisa_dut_validation_v1", "pyvisa_dut_validation_v1"
+    ).kind == "pyvisa_v1"
 
 
 def test_fibsem_suite_is_exactly_five_fixed_then_five_seeded() -> None:
@@ -113,9 +119,11 @@ def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> Non
     shared.mkdir()
     image_id = "sha256:" + "c" * 64
     request = {
-        "protocol_version": 1,
+        "protocol_version": 2,
         "run_id": "fibsem-test",
+        "source_id": "openfibsem",
         "instance_id": "fibsem_liftout_v1",
+        "evaluator_id": "fibsem_liftout_v1",
         "instance_path": str(INSTANCE.resolve()),
         "candidate_path": str(candidate.resolve()),
         "timeout_seconds": 180,
@@ -186,7 +194,10 @@ def test_full_suite_executes_each_world_once_in_declared_order(tmp_path: Path) -
         report = run_fibsem_full_suite(
             benchmark=benchmark,
             instance=load_instance_settings(
-                INSTANCE, expected_evaluator_id="fibsem_liftout_v1"
+                INSTANCE,
+                expected_source_id="openfibsem",
+                expected_instance_id="fibsem_liftout_v1",
+                expected_evaluator_id="fibsem_liftout_v1",
             ),
             candidate_path=ROOT / "sources/openfibsem/fibsem_liftout_v1/reference/solution.py",
             backend=object(),

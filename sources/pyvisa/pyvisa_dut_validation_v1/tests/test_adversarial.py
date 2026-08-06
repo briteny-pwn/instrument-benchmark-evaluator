@@ -45,7 +45,12 @@ def settings() -> tuple[RunSettings, object]:
             timeout_seconds=30,
             max_output_bytes=1_048_576,
         ),
-        load_instance_settings(INSTANCE_ROOT),
+        load_instance_settings(
+            INSTANCE_ROOT,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v1",
+            expected_evaluator_id="pyvisa_dut_validation_v1",
+        ),
     )
 
 

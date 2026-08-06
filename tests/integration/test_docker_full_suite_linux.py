@@ -68,7 +68,12 @@ def semantic_projection(value):
 class DockerFullSuiteLinuxTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.instance = load_instance_settings(INSTANCE)
+        cls.instance = load_instance_settings(
+            INSTANCE,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v1",
+            expected_evaluator_id="pyvisa_dut_validation_v1",
+        )
         cls.docker = DockerCandidateBackend.from_instance(cls.instance)
         cls.settings = RunSettings(
             instance_path=INSTANCE,

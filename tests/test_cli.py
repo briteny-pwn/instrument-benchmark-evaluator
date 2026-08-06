@@ -1,22 +1,21 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
 from unittest.mock import patch
 from pathlib import Path
 
+import yaml
+
 from instrument_benchmark_evaluator.contracts import (
     ContractError,
     EvaluatorRequest,
     load_evaluator_request,
+    load_instance_settings,
 )
-from instrument_benchmark_evaluator.cli import (
-    FIBSEM_MANIFEST,
-    MANIFEST,
-    V2_MANIFEST,
-    main,
-)
+from instrument_benchmark_evaluator.cli import main
 from instrument_benchmark_evaluator.host_submission import HostCandidateBackend
 from instrument_benchmark_evaluator.container.errors import (
     ContainerInfrastructureError,
@@ -94,29 +93,6 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertNotIn("--simulator", forwarded)
             self.assertEqual(forwarded[-2:], ["--run-id", "run-default"])
 
-    def test_packaged_evaluator_manifest_matches_repository_contract(self) -> None:
-        self.assertEqual(
-            (MANIFEST, V2_MANIFEST, FIBSEM_MANIFEST),
-            (
-                ROOT
-                / "sources"
-                / "pyvisa"
-                / "pyvisa_dut_validation_v1"
-                / "evaluator.yaml",
-                ROOT
-                / "sources"
-                / "pyvisa"
-                / "pyvisa_dut_validation_v2"
-                / "evaluator.yaml",
-                ROOT
-                / "sources"
-                / "openfibsem"
-                / "fibsem_liftout_v1"
-                / "evaluator.yaml",
-            ),
-        )
-        self.assertTrue(all(path.is_file() for path in (MANIFEST, V2_MANIFEST, FIBSEM_MANIFEST)))
-
     def valid_request(self, directory: Path) -> dict[str, object]:
         instance = directory / "instance"
         candidate = directory / "solution.py"
@@ -125,9 +101,11 @@ class EvaluatorCliContractTests(unittest.TestCase):
         shared_run_root.mkdir()
         candidate.write_text("def run_experiment(endpoint, output): pass\n")
         return {
-            "protocol_version": 1,
+            "protocol_version": 2,
             "run_id": "contract-test",
+            "source_id": "pyvisa",
             "instance_id": "pyvisa_dut_validation_v1",
+            "evaluator_id": "pyvisa_dut_validation_v1",
             "instance_path": str(instance),
             "candidate_path": str(candidate),
             "timeout_seconds": 30,
@@ -146,6 +124,8 @@ class EvaluatorCliContractTests(unittest.TestCase):
             path.write_text(json.dumps(self.valid_request(root)))
             request = load_evaluator_request(path)
             self.assertIsInstance(request, EvaluatorRequest)
+            self.assertEqual(request.source_id, "pyvisa")
+            self.assertEqual(request.evaluator_id, "pyvisa_dut_validation_v1")
             self.assertTrue(request.instance_path.is_absolute())
             self.assertTrue(request.candidate_path.is_absolute())
             self.assertEqual(
@@ -158,6 +138,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             root = Path(directory)
             value = self.valid_request(root)
             value["instance_id"] = "pyvisa_dut_validation_v2"
+            value["evaluator_id"] = "pyvisa_dut_validation_v2"
             value["evaluator_image_id"] = "sha256:" + "a" * 64
             path = root / "request.json"
             path.write_text(json.dumps(value))
@@ -205,25 +186,75 @@ class EvaluatorCliContractTests(unittest.TestCase):
             with self.assertRaisesRegex(ContractError, "shared_run_root"):
                 load_evaluator_request(path)
 
-    def test_request_rejects_wrong_protocol(self) -> None:
+    def test_request_rejects_protocol_version_one(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             value = self.valid_request(root)
-            value["protocol_version"] = 2
+            value["protocol_version"] = 1
             path = root / "request.json"
             path.write_text(json.dumps(value))
             with self.assertRaisesRegex(ContractError, "protocol_version"):
                 load_evaluator_request(path)
 
-    def test_request_rejects_wrong_instance_id(self) -> None:
+    def test_request_rejects_missing_source_and_evaluator_ids(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             value = self.valid_request(root)
-            value["instance_id"] = "other"
+            path = root / "request.json"
+            for field in ("source_id", "evaluator_id"):
+                with self.subTest(field=field):
+                    changed = dict(value)
+                    changed.pop(field)
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaisesRegex(ContractError, "request fields"):
+                        load_evaluator_request(path)
+
+    def test_request_rejects_invalid_identity_values(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            path = root / "request.json"
+            for field, invalid in (
+                ("source_id", "PyVISA"),
+                ("instance_id", "../pyvisa_dut_validation_v1"),
+                ("evaluator_id", "pyvisa/dut"),
+            ):
+                with self.subTest(field=field, invalid=invalid):
+                    changed = dict(value)
+                    changed[field] = invalid
+                    path.write_text(json.dumps(changed))
+                    with self.assertRaisesRegex(ContractError, field):
+                        load_evaluator_request(path)
+
+    def test_request_rejects_cross_source_combination(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            value = self.valid_request(root)
+            value["source_id"] = "openfibsem"
+            value["instance_path"] = str(root / "missing-instance")
             path = root / "request.json"
             path.write_text(json.dumps(value))
-            with self.assertRaisesRegex(ContractError, "instance_id"):
+            with self.assertRaisesRegex(
+                ContractError, "source/evaluator/instance combination"
+            ):
                 load_evaluator_request(path)
+
+    def test_instance_manifest_rejects_mismatched_source_id(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            instance = Path(directory) / "instance"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "instance", instance)
+            manifest_path = instance / "instance.yaml"
+            manifest = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
+            manifest["source_id"] = "openfibsem"
+            manifest_path.write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+            with self.assertRaisesRegex(ContractError, "source_id"):
+                load_instance_settings(
+                    instance,
+                    expected_source_id="pyvisa",
+                    expected_instance_id="pyvisa_dut_validation_v1",
+                    expected_evaluator_id="pyvisa_dut_validation_v1",
+                )
 
     def test_cli_defaults_to_docker_and_reports_infrastructure_failure(self) -> None:
         instance = ROOT / "tests" / "fixtures" / "instance"
@@ -306,7 +337,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertEqual(status, 0)
             report = json.loads(report_path.read_text())
             self.assertTrue(report["strict_pass"])
-            self.assertEqual(report["evaluator"]["protocol_version"], 1)
+            self.assertEqual(report["evaluator"]["protocol_version"], 2)
             self.assertEqual(len(report["worlds"]), 10)
 
     def test_cli_dispatches_v2_with_exact_image_id_and_schema_three(self) -> None:
@@ -340,6 +371,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             value.update(
                 {
                     "instance_id": "pyvisa_dut_validation_v2",
+                    "evaluator_id": "pyvisa_dut_validation_v2",
                     "instance_path": str(instance),
                     "candidate_path": str(candidate),
                     "evaluator_image_id": image_id,
@@ -371,6 +403,7 @@ class EvaluatorCliContractTests(unittest.TestCase):
             self.assertEqual(
                 report["evaluator"]["id"], "pyvisa_dut_validation_v2"
             )
+            self.assertEqual(report["evaluator"]["source_id"], "pyvisa")
 
 
 if __name__ == "__main__":

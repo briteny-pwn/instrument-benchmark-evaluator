@@ -63,7 +63,10 @@ class V2DualContainerLinuxTests(unittest.TestCase):
         )
         cls.addClassCleanup(cls.builder.remove, cls.evaluator_image)
         cls.instance = load_instance_settings(
-            INSTANCE, expected_evaluator_id="pyvisa_dut_validation_v2"
+            INSTANCE,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v2",
+            expected_evaluator_id="pyvisa_dut_validation_v2",
         )
 
     def setUp(self) -> None:

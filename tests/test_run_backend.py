@@ -44,8 +44,17 @@ class PathRecordingBackend:
 
 
 class RunBackendTests(unittest.TestCase):
+    @staticmethod
+    def load_instance():
+        return load_instance_settings(
+            INSTANCE,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v1",
+            expected_evaluator_id="pyvisa_dut_validation_v1",
+        )
+
     def test_docker_backend_stages_bootstrap_below_shared_world_root(self) -> None:
-        instance = load_instance_settings(INSTANCE)
+        instance = self.load_instance()
         image = ImageEvidence(
             image_reference="candidate:test",
             image_id="sha256:" + "a" * 64,
@@ -89,7 +98,7 @@ class RunBackendTests(unittest.TestCase):
             self.assertTrue((staged / "container" / "bootstrap_contract.py").is_file())
 
     def test_world_paths_are_created_below_shared_run_root(self) -> None:
-        instance = load_instance_settings(INSTANCE)
+        instance = self.load_instance()
         candidate = EVALUATOR / "reference" / "solution.py"
         spec = load_world_specs(EVALUATOR / "worlds")["nominal"]
         backend = PathRecordingBackend()
@@ -118,7 +127,7 @@ class RunBackendTests(unittest.TestCase):
             self.assertFalse(backend.workspace.exists())
 
     def test_candidate_failure_captures_unsafe_state_then_forces_cleanup(self) -> None:
-        instance = load_instance_settings(INSTANCE)
+        instance = self.load_instance()
         benchmark = RunSettings(
             instance_path=INSTANCE,
             fixed_worlds=("nominal",),

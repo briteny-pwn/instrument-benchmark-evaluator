@@ -7,41 +7,17 @@ import sys
 from pathlib import Path
 from typing import Callable
 
-import yaml
-
-from . import PROTOCOL_VERSION
 from .contracts import (
     ContractError,
     RunSettings,
-    evaluator_kind,
     load_evaluator_request,
     load_instance_settings,
 )
+from .dispatch import resolve_evaluator_target
 from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .container.docker_client import DockerClient
 
 
-MANIFEST = (
-    Path(__file__).resolve().parents[1]
-    / "sources"
-    / "pyvisa"
-    / "pyvisa_dut_validation_v1"
-    / "evaluator.yaml"
-)
-V2_MANIFEST = (
-    Path(__file__).resolve().parents[1]
-    / "sources"
-    / "pyvisa"
-    / "pyvisa_dut_validation_v2"
-    / "evaluator.yaml"
-)
-FIBSEM_MANIFEST = (
-    Path(__file__).resolve().parents[1]
-    / "sources"
-    / "openfibsem"
-    / "fibsem_liftout_v1"
-    / "evaluator.yaml"
-)
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="instrument-evaluator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -95,23 +71,18 @@ def main(
         return 2
     try:
         request = load_evaluator_request(arguments.request.resolve())
+        target = resolve_evaluator_target(
+            request.source_id, request.evaluator_id, request.instance_id
+        )
         instance = load_instance_settings(
-            request.instance_path, expected_evaluator_id=request.instance_id
+            request.instance_path,
+            expected_source_id=request.source_id,
+            expected_instance_id=request.instance_id,
+            expected_evaluator_id=request.evaluator_id,
         )
-        kind = evaluator_kind(request.instance_id)
-        manifest_path = {
-            "pyvisa_v1": MANIFEST,
-            "pyvisa_v2": V2_MANIFEST,
-            "fibsem": FIBSEM_MANIFEST,
-        }[kind]
-        manifest = yaml.safe_load(
-            manifest_path.read_text(encoding="utf-8")
-        )
-        fixed_worlds = (
-            ("nominal", "small", "large", "needle_offset", "target_pose")
-            if kind == "fibsem"
-            else tuple(manifest["fixed_worlds"])
-        )
+        kind = target.kind
+        manifest = target.manifest
+        fixed_worlds = tuple(manifest["fixed_worlds"])
         settings = RunSettings(
             instance_path=request.instance_path,
             fixed_worlds=fixed_worlds,
@@ -194,9 +165,12 @@ def main(
                 backend=backend,
             ).to_dict()
         if kind != "fibsem":
+            if report.get("source_id") != request.source_id:
+                raise ContractError("evaluator report source_id does not match request")
             report["evaluator"] = {
-                "id": request.instance_id,
-                "protocol_version": PROTOCOL_VERSION,
+                "source_id": request.source_id,
+                "id": request.evaluator_id,
+                "protocol_version": 2,
                 "run_id": request.run_id,
             }
         arguments.report.parent.mkdir(parents=True, exist_ok=True)

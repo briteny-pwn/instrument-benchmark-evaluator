@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from . import EVALUATOR_ID, PROTOCOL_VERSION
+from . import PROTOCOL_VERSION
 from .container.contracts import ContainerContract, load_container_contract
 from .container.errors import ContainerContractError
 
@@ -20,7 +21,9 @@ class ContractError(ValueError):
 class EvaluatorRequest:
     protocol_version: int
     run_id: str
+    source_id: str
     instance_id: str
+    evaluator_id: str
     instance_path: Path
     candidate_path: Path
     timeout_seconds: float
@@ -54,18 +57,6 @@ class RunSettings:
     shared_run_root: Path | None = None
 
 
-def evaluator_kind(instance_id: str) -> str:
-    kinds = {
-        "pyvisa_dut_validation_v1": "pyvisa_v1",
-        "pyvisa_dut_validation_v2": "pyvisa_v2",
-        "fibsem_liftout_v1": "fibsem",
-    }
-    try:
-        return kinds[instance_id]
-    except KeyError as exc:
-        raise ContractError("unsupported instance_id") from exc
-
-
 def load_evaluator_request(path: Path) -> EvaluatorRequest:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -74,7 +65,9 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
     required = {
         "protocol_version",
         "run_id",
+        "source_id",
         "instance_id",
+        "evaluator_id",
         "instance_path",
         "candidate_path",
         "timeout_seconds",
@@ -85,16 +78,19 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         "image_mode",
         "shared_run_root",
     }
-    if not isinstance(value, dict):
-        raise ContractError("request fields do not match protocol version 1")
-    instance_id = value.get("instance_id")
-    kind = evaluator_kind(instance_id) if isinstance(instance_id, str) else None
-    if kind == "pyvisa_v1":
-        expected_fields = required
-    elif kind in {"pyvisa_v2", "fibsem"}:
-        expected_fields = required | {"evaluator_image_id"}
-    else:
-        raise ContractError("unsupported instance_id")
+    if not isinstance(value, dict) or not required.issubset(value):
+        raise ContractError("request fields do not match evaluator protocol")
+    source_id = _identifier(value["source_id"], "source_id")
+    instance_id = _identifier(value["instance_id"], "instance_id")
+    evaluator_id = _identifier(value["evaluator_id"], "evaluator_id")
+    from .dispatch import resolve_evaluator_target
+
+    target = resolve_evaluator_target(source_id, evaluator_id, instance_id)
+    expected_fields = (
+        required | {"evaluator_image_id"}
+        if target.kind in {"pyvisa_v2", "fibsem"}
+        else required
+    )
     if set(value) != expected_fields:
         raise ContractError("request fields do not match evaluator protocol")
     if value["protocol_version"] != PROTOCOL_VERSION:
@@ -119,13 +115,15 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         raise ContractError("run_id must be a non-empty string")
     evaluator_image_id = (
         _sha256_digest(value["evaluator_image_id"], "evaluator_image_id")
-        if kind in {"pyvisa_v2", "fibsem"}
+        if target.kind in {"pyvisa_v2", "fibsem"}
         else None
     )
     return EvaluatorRequest(
         protocol_version=PROTOCOL_VERSION,
         run_id=run_id,
+        source_id=source_id,
         instance_id=instance_id,
+        evaluator_id=evaluator_id,
         instance_path=instance_path,
         candidate_path=candidate_path,
         timeout_seconds=timeout,
@@ -141,23 +139,21 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
 
 def load_instance_settings(
     instance_path: Path,
-    expected_evaluator_id: str = EVALUATOR_ID,
+    *,
+    expected_source_id: str,
+    expected_instance_id: str,
+    expected_evaluator_id: str,
 ) -> InstanceSettings:
     manifest_path = instance_path / "instance.yaml"
     try:
         value = yaml.safe_load(manifest_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
         raise ContractError(f"cannot load instance manifest: {exc}") from exc
-    if (
-        expected_evaluator_id
-        not in {
-            "pyvisa_dut_validation_v1",
-            "pyvisa_dut_validation_v2",
-            "fibsem_liftout_v1",
-        }
-        or not isinstance(value, dict)
-        or value.get("instance_id") != expected_evaluator_id
-    ):
+    if not isinstance(value, dict) or value.get("schema_version") != 2:
+        raise ContractError("instance manifest schema is incompatible")
+    if value.get("source_id") != expected_source_id:
+        raise ContractError("instance manifest has unsupported source_id")
+    if value.get("instance_id") != expected_instance_id:
         raise ContractError("instance manifest has unsupported instance_id")
     evaluator = value.get("evaluator")
     if evaluator != {
@@ -177,7 +173,7 @@ def load_instance_settings(
     except ContainerContractError as exc:
         raise ContractError(f"invalid instance container contract: {exc}") from exc
     return InstanceSettings(
-        instance_id=expected_evaluator_id,
+        instance_id=expected_instance_id,
         visible_files=tuple(visible),
         submission_filename=str(submission["filename"]),
         result_filename=str(submission["result_filename"]),
@@ -229,4 +225,10 @@ def _sha256_digest(raw: Any, name: str) -> str:
         character not in "0123456789abcdef" for character in digest
     ):
         raise ContractError(f"{name} must contain 64 lowercase hex characters")
+    return raw
+
+
+def _identifier(raw: Any, name: str) -> str:
+    if not isinstance(raw, str) or re.fullmatch(r"[a-z][a-z0-9_-]*", raw) is None:
+        raise ContractError(f"{name} must be a valid identifier")
     return raw

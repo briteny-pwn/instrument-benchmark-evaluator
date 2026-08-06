@@ -85,7 +85,10 @@ class FibsemFullSuiteLinuxTests(unittest.TestCase):
         )
         cls.addClassCleanup(cls.builder.remove, cls.evaluator_image)
         cls.instance = load_instance_settings(
-            INSTANCE, expected_evaluator_id="fibsem_liftout_v1"
+            INSTANCE,
+            expected_source_id="openfibsem",
+            expected_instance_id="fibsem_liftout_v1",
+            expected_evaluator_id="fibsem_liftout_v1",
         )
 
     def test_reference_full_suite_is_strict_and_deterministic(self) -> None:

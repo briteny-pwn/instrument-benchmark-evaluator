@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from instrument_benchmark_evaluator.contracts import ContractError
+from instrument_benchmark_evaluator.dispatch import resolve_evaluator_target
 from sources.openfibsem.fibsem_liftout_v1.instrumented_microscope import (
     OperationDispatcher,
     RejectedOperation,
@@ -14,6 +16,33 @@ from sources.openfibsem.fibsem_liftout_v1.models import ScenarioSpec
 
 ROOT = Path(__file__).resolve().parents[4]
 NOMINAL = ROOT.parent / "instance" / "sources" / "openfibsem" / "fibsem_liftout_v1" / "scenarios" / "nominal.json"
+
+
+def test_resolve_evaluator_target_uses_composite_source_identity() -> None:
+    target = resolve_evaluator_target(
+        "openfibsem", "fibsem_liftout_v1", "fibsem_liftout_v1"
+    )
+
+    assert target.kind == "fibsem"
+    assert target.manifest["source_id"] == "openfibsem"
+
+
+def test_resolve_evaluator_target_rejects_cross_source_identity() -> None:
+    with pytest.raises(
+        ContractError, match="source/evaluator/instance combination"
+    ):
+        resolve_evaluator_target(
+            "pyvisa", "fibsem_liftout_v1", "fibsem_liftout_v1"
+        )
+
+
+def test_resolve_evaluator_target_rejects_unsupported_instance() -> None:
+    with pytest.raises(
+        ContractError, match="source/evaluator/instance combination"
+    ):
+        resolve_evaluator_target(
+            "pyvisa", "pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"
+        )
 
 
 class FakeBackend:

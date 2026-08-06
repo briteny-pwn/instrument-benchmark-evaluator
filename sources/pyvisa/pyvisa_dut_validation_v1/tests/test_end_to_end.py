@@ -52,7 +52,12 @@ class EndToEndTests(unittest.TestCase):
             timeout_seconds=30,
             max_output_bytes=1_048_576,
         )
-        instance = load_instance_settings(INSTANCE_ROOT)
+        instance = load_instance_settings(
+            INSTANCE_ROOT,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v1",
+            expected_evaluator_id="pyvisa_dut_validation_v1",
+        )
 
         first = run_full_suite(
             benchmark=benchmark,

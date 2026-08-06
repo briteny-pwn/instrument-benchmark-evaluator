@@ -187,7 +187,10 @@ class V2EndToEndTests(unittest.TestCase):
     def test_formal_world_runner_executes_reference_and_real_negatives(self) -> None:
         spec = load_world_specs(WORLDS)["nominal"]
         instance = load_instance_settings(
-            INSTANCE, expected_evaluator_id="pyvisa_dut_validation_v2"
+            INSTANCE,
+            expected_source_id="pyvisa",
+            expected_instance_id="pyvisa_dut_validation_v2",
+            expected_evaluator_id="pyvisa_dut_validation_v2",
         )
         with tempfile.TemporaryDirectory() as directory, patch(
             "sources.pyvisa.pyvisa_dut_validation_v2.broker._peer_credentials",

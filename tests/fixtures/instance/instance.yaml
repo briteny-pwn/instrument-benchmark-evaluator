@@ -1,8 +1,9 @@
-schema_version: 1
+schema_version: 2
+source_id: pyvisa
 instance_id: pyvisa_dut_validation_v1
 evaluator:
   id: pyvisa_dut_validation_v1
-  protocol_version: 1
+  protocol_version: 2
 visible_files:
   starter/gateway_client.py: test-fixture
 submission:
