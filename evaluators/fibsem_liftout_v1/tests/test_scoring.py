@@ -260,7 +260,52 @@ def world_report(world_id: str, *, passed: bool = True, unsafe: bool = False):
             evidence["step_4"],
             geometry=replace(evidence["step_4"].geometry, sample_to_target=False),
         )
-    return grade_world(spec, valid_journal(world_id), evidence, terminal, valid_runtime())
+    report = grade_world(
+        spec, valid_journal(world_id), evidence, terminal, valid_runtime()
+    )
+    candidate = {
+        "container_id": "candidate",
+        "image_digest": "sha256:" + "1" * 64,
+        "network_mode": "none",
+        "readonly_rootfs": True,
+        "user": "10001:10001",
+        "cap_drop": ["ALL"],
+        "security_options": ["no-new-privileges"],
+        "mounts": [
+            {"type": "bind", "destination": name, "writable": False}
+            for name in ("/workspace", "/runner", "/run/iab")
+        ],
+        "cleanup_attempted": True,
+        "cleanup_succeeded": True,
+        "candidate_status": "completed",
+    }
+    sim = {
+        **candidate,
+        "container_id": "sim",
+        "image_digest": "sha256:" + "2" * 64,
+        "user": "11001:11001",
+        "mounts": [
+            {"type": "bind", "destination": name, "writable": writable}
+            for name, writable in (
+                ("/run/iab/transport", True),
+                ("/run/iab/evidence", True),
+                ("/run/iab/world.json", False),
+            )
+        ],
+    }
+    sim.pop("candidate_status")
+    return replace(
+        report,
+        candidate_container_evidence=candidate,
+        sim_container_evidence=sim,
+        trusted_evidence={
+            "journal_head_hash": report.partial_order and "3" * 64,
+            "journal_event_count": 100,
+            "outcome": "completed",
+            "forced_cleanup": False,
+            "scenario_digest": "4" * 64,
+        },
+    )
 
 
 def test_four_of_five_seeded_may_pass_but_unsafe_failure_never_passes() -> None:

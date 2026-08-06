@@ -90,6 +90,9 @@ def validate_report(value: object) -> dict[str, object]:
             "terminal",
             "runtime",
             "evidence_confidence",
+            "candidate_container_evidence",
+            "sim_container_evidence",
+            "trusted_evidence",
         }
         if set(world) != world_fields:
             raise ReportError("world fields are invalid")
@@ -222,6 +225,20 @@ def validate_report(value: object) -> dict[str, object]:
             isinstance(exit_code, bool) or not isinstance(exit_code, int)
         ):
             raise ReportError(f"world candidate exit code is invalid: {world_id}")
+        candidate_container = world.get("candidate_container_evidence")
+        sim_container = world.get("sim_container_evidence")
+        trusted = world.get("trusted_evidence")
+        if world.get("retry_eligible"):
+            if candidate_container is not None:
+                _container_evidence(candidate_container, "candidate", world_id)
+            if sim_container is not None:
+                _container_evidence(sim_container, "sim", world_id)
+            if trusted is not None:
+                _trusted_evidence(trusted, world_id)
+        else:
+            _container_evidence(candidate_container, "candidate", world_id)
+            _container_evidence(sim_container, "sim", world_id)
+            _trusted_evidence(trusted, world_id)
         world_confidence = world.get("evidence_confidence")
         if (
             isinstance(world_confidence, bool)
@@ -239,6 +256,101 @@ def validate_report(value: object) -> dict[str, object]:
     ):
         raise ReportError("strict pass contradicts suite gates")
     return report
+
+
+def _container_evidence(value: object, role: str, world_id: str) -> None:
+    if not isinstance(value, Mapping):
+        raise ReportError(f"{role} container evidence is missing: {world_id}")
+    required = {
+        "container_id",
+        "image_digest",
+        "network_mode",
+        "readonly_rootfs",
+        "user",
+        "cap_drop",
+        "security_options",
+        "mounts",
+        "cleanup_attempted",
+        "cleanup_succeeded",
+    }
+    if role == "candidate":
+        required.add("candidate_status")
+    if not required.issubset(value):
+        raise ReportError(f"{role} container evidence is incomplete: {world_id}")
+    expected_user = "10001:10001" if role == "candidate" else "11001:11001"
+    if (
+        not _image_digest(value.get("image_digest"))
+        or value.get("network_mode") != "none"
+        or value.get("readonly_rootfs") is not True
+        or value.get("user") != expected_user
+        or not isinstance(value.get("cap_drop"), list)
+        or "ALL" not in value["cap_drop"]
+        or not isinstance(value.get("security_options"), list)
+        or "no-new-privileges" not in value["security_options"]
+        or value.get("cleanup_attempted") is not True
+        or value.get("cleanup_succeeded") is not True
+    ):
+        raise ReportError(f"{role} container security evidence failed: {world_id}")
+    expected_mounts = (
+        {"/workspace": False, "/runner": False, "/run/iab": False}
+        if role == "candidate"
+        else {
+            "/run/iab/transport": True,
+            "/run/iab/evidence": True,
+            "/run/iab/world.json": False,
+        }
+    )
+    mounts = value.get("mounts")
+    if not isinstance(mounts, list):
+        raise ReportError(f"{role} container mounts are invalid: {world_id}")
+    actual: dict[str, bool] = {}
+    for mount in mounts:
+        if (
+            not isinstance(mount, Mapping)
+            or mount.get("type") != "bind"
+            or not isinstance(mount.get("destination"), str)
+            or not isinstance(mount.get("writable"), bool)
+            or mount["destination"] in actual
+        ):
+            raise ReportError(f"{role} container mounts are invalid: {world_id}")
+        actual[mount["destination"]] = mount["writable"]
+    if actual != expected_mounts:
+        raise ReportError(f"{role} container mount boundary failed: {world_id}")
+
+
+def _trusted_evidence(value: object, world_id: str) -> None:
+    if not isinstance(value, Mapping) or set(value) != {
+        "journal_head_hash",
+        "journal_event_count",
+        "outcome",
+        "forced_cleanup",
+        "scenario_digest",
+    }:
+        raise ReportError(f"trusted evidence is incomplete: {world_id}")
+    count = value["journal_event_count"]
+    if (
+        not _digest(value["journal_head_hash"])
+        or not _digest(value["scenario_digest"])
+        or isinstance(count, bool)
+        or not isinstance(count, int)
+        or count < 1
+        or value["outcome"]
+        not in {
+            "completed",
+            "candidate_incomplete",
+            "candidate_failure",
+            "infrastructure_failure",
+            "cleanup_failure",
+        }
+        or not isinstance(value["forced_cleanup"], bool)
+    ):
+        raise ReportError(f"trusted evidence is invalid: {world_id}")
+
+
+def _image_digest(value: object) -> bool:
+    return isinstance(value, str) and value.startswith("sha256:") and _digest(
+        value.removeprefix("sha256:")
+    )
 
 
 def _boolean_mapping(value: object, name: str) -> None:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping
 
@@ -78,6 +78,7 @@ def run_fibsem_world(
     for path in (transport, evidence, workspace, output):
         path.mkdir(mode=0o755)
     output.chmod(0o777)
+    static_forbidden = False
     try:
         prepare_workspace(
             benchmark.instance_path,
@@ -86,7 +87,7 @@ def run_fibsem_world(
             workspace,
         )
     except IsolationError:
-        return _candidate_boundary_failure(spec, evidence)
+        static_forbidden = True
     scenario_payload = canonical_document(spec.to_dict())
     world_path = root / "world.json"
     candidate_scenario = workspace / "scenario.json"
@@ -134,6 +135,7 @@ def run_fibsem_world(
         process,
         sim_result,
         infrastructure=infrastructure,
+        forbidden=static_forbidden,
         expected_world=spec.scenario_id,
     )
     report = grade_world(
@@ -142,6 +144,27 @@ def run_fibsem_world(
         trusted.checkpoints,
         trusted.terminal,
         runtime,
+    )
+    candidate_container = (
+        process.container_evidence.to_dict()
+        if isinstance(process, ContainerProcessResult)
+        else None
+    )
+    if candidate_container is not None:
+        candidate_container["candidate_status"] = (
+            process.candidate_status or process.status
+        )
+    report = replace(
+        report,
+        candidate_container_evidence=candidate_container,
+        sim_container_evidence=sim_result.container_evidence.to_dict(),
+        trusted_evidence={
+            "journal_head_hash": trusted.journal.head_hash,
+            "journal_event_count": trusted.journal.sequence,
+            "outcome": trusted.outcome,
+            "forced_cleanup": trusted.forced_cleanup,
+            "scenario_digest": trusted.scenario_digest,
+        },
     )
     return FibsemWorldExecution(process, sim_result, report, evidence)
 
@@ -252,18 +275,6 @@ def _candidate_result_valid(value: object, *, expected_world: str | None) -> boo
         and value["completed"] is True
         and ("notes" not in value or isinstance(value["notes"], str))
     )
-
-
-def _candidate_boundary_failure(
-    spec: ScenarioSpec, evidence_root: Path
-) -> FibsemWorldExecution:
-    from evaluators.fibsem_liftout_v1.journal import EventJournal
-
-    journal = EventJournal("candidate-boundary", spec.scenario_id)
-    terminal = TerminalEvidence(True, True, False, None)
-    runtime = RuntimeEvidence(None, False, True, False, 10001, 11001, True)
-    report = grade_world(spec, journal, {}, terminal, runtime)
-    return FibsemWorldExecution(None, None, report, evidence_root)
 
 
 def _infrastructure_failure(

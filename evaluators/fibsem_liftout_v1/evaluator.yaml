@@ -1,7 +1,19 @@
 schema_version: 1
 evaluator_id: fibsem_liftout_v1
 task_type: fibsem_liftout
+protocol_version: 1
 report_schema_version: 3
+container_protocol_version: 1
+candidate_execution: docker
+image_mode: locked
+supported_instances:
+  - fibsem_liftout_v1
+fixed_worlds:
+  - nominal
+  - small
+  - large
+  - needle_offset
+  - target_pose
 worlds:
   fixed: 5
   seeded: 5

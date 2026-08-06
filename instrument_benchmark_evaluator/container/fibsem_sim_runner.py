@@ -42,6 +42,7 @@ class FibsemTrustedEvidence:
     terminal: TerminalEvidence
     outcome: str
     forced_cleanup: bool
+    scenario_digest: str
 
 
 @dataclass(frozen=True)
@@ -512,7 +513,15 @@ def load_fibsem_evidence(
         collision=collision,
         cleanup_error=cleanup_error,
     )
-    return FibsemTrustedEvidence(journal, checkpoints, terminal, outcome, forced)
+    assert isinstance(summary_scenario_digest, str)
+    return FibsemTrustedEvidence(
+        journal,
+        checkpoints,
+        terminal,
+        outcome,
+        forced,
+        summary_scenario_digest,
+    )
 
 
 def _geometry_metrics(value: object) -> GeometryMetrics:

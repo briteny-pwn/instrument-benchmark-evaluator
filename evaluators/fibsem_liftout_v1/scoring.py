@@ -107,6 +107,9 @@ class FibsemWorldReport:
     terminal: TerminalEvidence
     runtime: RuntimeEvidence
     evidence_confidence: float
+    candidate_container_evidence: Mapping[str, object] | None = None
+    sim_container_evidence: Mapping[str, object] | None = None
+    trusted_evidence: Mapping[str, object] | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -126,6 +129,21 @@ class FibsemWorldReport:
             "terminal": self.terminal.to_dict(),
             "runtime": self.runtime.to_dict(),
             "evidence_confidence": self.evidence_confidence,
+            "candidate_container_evidence": (
+                dict(self.candidate_container_evidence)
+                if self.candidate_container_evidence is not None
+                else None
+            ),
+            "sim_container_evidence": (
+                dict(self.sim_container_evidence)
+                if self.sim_container_evidence is not None
+                else None
+            ),
+            "trusted_evidence": (
+                dict(self.trusted_evidence)
+                if self.trusted_evidence is not None
+                else None
+            ),
         }
 
 

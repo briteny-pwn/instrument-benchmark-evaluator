@@ -37,6 +37,11 @@ def test_report_schema_version_3_round_trips_canonical_json() -> None:
     assert validated["schema_version"] == 3
     assert validated["strict_pass"] is True
     assert len(validated["worlds"]) == 10
+    assert validated["worlds"][0]["candidate_container_evidence"][
+        "user"
+    ] == "10001:10001"
+    assert validated["worlds"][0]["sim_container_evidence"]["user"] == "11001:11001"
+    assert validated["worlds"][0]["trusted_evidence"]["journal_head_hash"]
     assert json.loads(payload) == validated
 
 
@@ -68,4 +73,9 @@ def test_report_requires_runtime_terminal_and_geometry_provenance() -> None:
         "canonical_geometry_hash"
     ] = "forged"
     with pytest.raises(ReportError, match="geometry hash"):
+        validate_report(report)
+
+    report = complete_report()
+    report["worlds"][0]["candidate_container_evidence"]["network_mode"] = "bridge"  # type: ignore[index]
+    with pytest.raises(ReportError, match="candidate container"):
         validate_report(report)
