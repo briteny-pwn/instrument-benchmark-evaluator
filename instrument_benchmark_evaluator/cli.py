@@ -19,8 +19,6 @@ from .contracts import (
 )
 from .candidate_backend import CandidateBackend, DockerCandidateBackend
 from .container.docker_client import DockerClient
-from .run import run_full_suite
-from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
 
 
 MANIFEST = Path(__file__).with_name("evaluator.yaml")
@@ -36,9 +34,6 @@ FIBSEM_MANIFEST = (
     / "fibsem_liftout_v1"
     / "evaluator.yaml"
 )
-WORLD_DIRECTORY = Path(world_resources.__file__).resolve().parent
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="instrument-evaluator")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -129,6 +124,7 @@ def main(
                 shared_run_root=request.shared_run_root,
             )
         if kind == "pyvisa_v2":
+            from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
             from evaluators.pyvisa_dut_validation_v1.worlds import (
                 load_world_specs,
             )
@@ -149,7 +145,7 @@ def main(
             report = run_v2_full_suite(
                 benchmark=settings,
                 instance=instance,
-                specs=load_world_specs(WORLD_DIRECTORY),
+                specs=load_world_specs(Path(world_resources.__file__).resolve().parent),
                 candidate_path=request.candidate_path,
                 backend=backend,
                 sim_runner=sim_runner,
@@ -177,11 +173,15 @@ def main(
                 repeated_base_seed=request.repeated_base_seed,
             ).to_dict()
         else:
+            from evaluators.pyvisa_dut_validation_v1 import worlds as world_resources
+
+            from .run import run_full_suite
+
             report = run_full_suite(
                 benchmark=settings,
                 instance=instance,
                 candidate_path=request.candidate_path,
-                world_directory=WORLD_DIRECTORY,
+                world_directory=Path(world_resources.__file__).resolve().parent,
                 repeated_base_seed=request.repeated_base_seed,
                 backend=backend,
             ).to_dict()
