@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -36,6 +37,9 @@ def test_exporter_writes_merged_and_component_meshes_glb_images_and_manifest(
         REQUIRED_COMPONENTS
     )
     assert evidence.bundle_sha256
+    assert stat.S_IMODE(root.stat().st_mode) == 0o777
+    assert stat.S_IMODE((root / "components").stat().st_mode) == 0o777
+    assert stat.S_IMODE(root.parent.stat().st_mode) == 0o777
 
 
 def test_exporter_is_atomic_and_leaves_no_step_on_invalid_image(tmp_path: Path) -> None:

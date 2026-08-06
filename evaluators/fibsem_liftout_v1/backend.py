@@ -566,7 +566,9 @@ def openfibsem_source_commit() -> str:
 class _OpenFibsemRuntime:
     source_commit = OPENFIBSEM_COMMIT
     use_ray_tracing = True
-    ray_tracing_cpu_threads = 0
+    ray_tracing_cpu_threads = 1
+    ray_tracing_dose = 4
+    ray_tracing_wavefront_size = 131_072
 
     def __init__(self, scenario: ScenarioSpec, parts: tuple[MeshPart, ...]):
         from fibsem import utils  # type: ignore[import-not-found]
@@ -613,7 +615,9 @@ class _OpenFibsemRuntime:
 
         beam_type = BeamType.ELECTRON if beam == "SEM" else BeamType.ION
         image = self.microscope.acquire_image(
-            ImageSettings(resolution=[512, 512], hfw="80 um", beam_type=beam_type)
+            ImageSettings(resolution=[512, 512], hfw="80 um", beam_type=beam_type),
+            dose=self.ray_tracing_dose,
+            wavefront_size=self.ray_tracing_wavefront_size,
         )
         data = np.asarray(image.data)
         if data.ndim == 3:

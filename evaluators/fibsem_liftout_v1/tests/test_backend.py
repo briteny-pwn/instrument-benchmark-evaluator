@@ -142,4 +142,6 @@ def test_openfibsem_runtime_uses_headless_ray_tracing() -> None:
     from evaluators.fibsem_liftout_v1.backend import _OpenFibsemRuntime
 
     assert _OpenFibsemRuntime.use_ray_tracing is True
-    assert _OpenFibsemRuntime.ray_tracing_cpu_threads == 0
+    assert _OpenFibsemRuntime.ray_tracing_cpu_threads == 1
+    assert _OpenFibsemRuntime.ray_tracing_dose == 4
+    assert _OpenFibsemRuntime.ray_tracing_wavefront_size == 131_072

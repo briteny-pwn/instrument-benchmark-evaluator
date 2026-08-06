@@ -269,6 +269,7 @@ def _atomic_write(path: Path, payload: bytes) -> None:
         with os.fdopen(descriptor, "wb") as stream:
             stream.write(payload)
             stream.flush()
+            os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
         os.replace(temporary, path)
     except BaseException:

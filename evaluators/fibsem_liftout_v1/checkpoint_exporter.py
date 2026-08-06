@@ -71,6 +71,8 @@ class CheckpointExporter:
         if destination.exists():
             raise FileExistsError(f"checkpoint already exists: {snapshot.checkpoint_id}")
         destination.parent.mkdir(parents=True, exist_ok=True)
+        (self.evidence_root / "artifacts").chmod(0o777)
+        destination.parent.chmod(0o777)
         temporary = Path(
             tempfile.mkdtemp(
                 prefix=f".{snapshot.checkpoint_id}.", suffix=".tmp", dir=destination.parent
@@ -79,6 +81,7 @@ class CheckpointExporter:
         try:
             components = temporary / "components"
             components.mkdir()
+            components.chmod(0o777)
             payloads: dict[str, bytes] = {
                 "scene.glb": _glb(snapshot.parts),
                 "scene.stl": _stl(snapshot.parts),
@@ -137,6 +140,7 @@ class CheckpointExporter:
                 trusted_snapshot=snapshot,
             )
             os.replace(temporary, destination)
+            destination.chmod(0o777)
             _fsync_directory(destination.parent)
             return validate_checkpoint_bundle(
                 destination,

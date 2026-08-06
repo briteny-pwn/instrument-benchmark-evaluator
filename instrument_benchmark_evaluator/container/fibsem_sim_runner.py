@@ -246,6 +246,8 @@ def _create_arguments(
         "--security-opt=no-new-privileges",
         "--log-driver=none",
         "--user=11001:11001",
+        "--env=HOME=/tmp",
+        "--env=XDG_CACHE_HOME=/tmp/.cache",
         "--cpus=2.0",
         "--memory=2048m",
         "--memory-swap=2048m",

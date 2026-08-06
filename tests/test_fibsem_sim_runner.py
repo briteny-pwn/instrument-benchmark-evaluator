@@ -103,6 +103,8 @@ def test_fibsem_runner_mounts_only_transport_evidence_and_hidden_world(
     assert "--cap-drop=ALL" in arguments
     assert "--security-opt=no-new-privileges" in arguments
     assert "--user=11001:11001" in arguments
+    assert "--env=HOME=/tmp" in arguments
+    assert "--env=XDG_CACHE_HOME=/tmp/.cache" in arguments
     assert image in arguments
     mounts = [value for value in arguments if value.startswith("--mount=")]
     assert len(mounts) == 3

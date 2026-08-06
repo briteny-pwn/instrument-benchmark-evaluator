@@ -11,6 +11,7 @@ from instrument_benchmark_evaluator.contracts import evaluator_kind
 from instrument_benchmark_evaluator.contracts import RunSettings, load_instance_settings
 from instrument_benchmark_evaluator.fibsem_run import (
     FibsemWorldExecution,
+    _make_host_cleanup_directories,
     fibsem_suite_specs,
     run_fibsem_full_suite,
 )
@@ -53,6 +54,20 @@ def test_fibsem_seeded_suite_is_byte_deterministic() -> None:
     assert [canonical_document(spec.to_dict()) for spec in first] == [
         canonical_document(spec.to_dict()) for spec in second
     ]
+
+
+def test_completed_world_tree_directories_are_host_cleanable(tmp_path: Path) -> None:
+    nested = tmp_path / "workspace" / "docs"
+    nested.mkdir(parents=True)
+    tmp_path.chmod(0o755)
+    (tmp_path / "workspace").chmod(0o755)
+    nested.chmod(0o755)
+
+    _make_host_cleanup_directories(tmp_path)
+
+    assert tmp_path.stat().st_mode & 0o777 == 0o777
+    assert (tmp_path / "workspace").stat().st_mode & 0o777 == 0o777
+    assert nested.stat().st_mode & 0o777 == 0o777
 
 
 def test_fibsem_bootstrap_calls_exact_four_argument_entrypoint(tmp_path: Path) -> None:

@@ -182,6 +182,7 @@ class OperationDispatcher:
                 before_state_hash=before_hash,
                 after_state_hash=canonical_digest(self._state()),
                 error_type=type(exc).__name__,
+                error_message=str(exc)[:256],
             )
             raise
         after_hash = canonical_digest(self._state())

@@ -70,14 +70,14 @@ def run_fibsem_world(
     root = Path(
         tempfile.mkdtemp(prefix="fibsem-w-", dir=benchmark.shared_run_root)
     ).resolve()
-    root.chmod(0o755)
+    root.chmod(0o777)
     transport = root / "transport"
     evidence = root / "evidence"
     workspace = root / "workspace"
     output = root / "output"
     for path in (transport, evidence, workspace, output):
         path.mkdir(mode=0o755)
-    output.chmod(0o777)
+        path.chmod(0o777)
     static_forbidden = False
     try:
         prepare_workspace(
@@ -104,7 +104,9 @@ def run_fibsem_world(
             evidence_dir=evidence,
         )
     except Exception as exc:
-        return _infrastructure_failure(spec, evidence, exc)
+        return _host_cleanup_ready(
+            root, _infrastructure_failure(spec, evidence, exc)
+        )
     failure: Exception | None = None
     try:
         try:
@@ -127,7 +129,15 @@ def run_fibsem_world(
             if failure is None:
                 failure = exc
     if failure is not None or sim_result is None:
-        return _infrastructure_failure(spec, evidence, failure or RuntimeError("sim failed"), process)
+        return _host_cleanup_ready(
+            root,
+            _infrastructure_failure(
+                spec,
+                evidence,
+                failure or RuntimeError("sim failed"),
+                process,
+            ),
+        )
     trusted = sim_result.trusted_evidence
     infrastructure = trusted.outcome in {"infrastructure_failure", "cleanup_failure"}
     infrastructure = infrastructure or process.status == "infrastructure_failure"
@@ -166,7 +176,9 @@ def run_fibsem_world(
             "scenario_digest": trusted.scenario_digest,
         },
     )
-    return FibsemWorldExecution(process, sim_result, report, evidence)
+    return _host_cleanup_ready(
+        root, FibsemWorldExecution(process, sim_result, report, evidence)
+    )
 
 
 def run_fibsem_full_suite(
@@ -291,3 +303,22 @@ def _infrastructure_failure(
     runtime = _runtime_evidence(process, None, infrastructure=True)
     report = grade_world(spec, journal, {}, terminal, runtime)
     return FibsemWorldExecution(process, None, report, evidence_root)
+
+
+def _host_cleanup_ready(
+    root: Path, execution: FibsemWorldExecution
+) -> FibsemWorldExecution:
+    _make_host_cleanup_directories(root)
+    return execution
+
+
+def _make_host_cleanup_directories(root: Path) -> None:
+    root = Path(root)
+    directories = [
+        path
+        for path in root.rglob("*")
+        if not path.is_symlink() and path.is_dir()
+    ]
+    for directory in directories:
+        directory.chmod(0o777)
+    root.chmod(0o777)

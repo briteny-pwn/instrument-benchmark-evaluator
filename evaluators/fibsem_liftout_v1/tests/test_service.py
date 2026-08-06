@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import stat
 
 from evaluators.fibsem_liftout_v1.checkpoint_exporter import CheckpointExporter
 from evaluators.fibsem_liftout_v1.journal import EventJournal
@@ -58,6 +59,9 @@ def test_finalize_records_pre_and_post_forced_cleanup_state(tmp_path: Path) -> N
     assert backend.calls[-3:] == ["cancel", "force_safe", "close"]
     assert (tmp_path / "journal.jsonl").is_file()
     assert (tmp_path / "service-summary.json").is_file()
+    assert stat.S_IMODE((tmp_path / "service-summary.json").stat().st_mode) == 0o644
+    assert stat.S_IMODE((tmp_path / "journal.jsonl").stat().st_mode) == 0o644
+    assert stat.S_IMODE((tmp_path / "journal-summary.json").stat().st_mode) == 0o644
 
 
 def test_candidate_protocol_failure_is_journaled_as_rejected_not_infrastructure(
