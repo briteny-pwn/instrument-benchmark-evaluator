@@ -18,7 +18,11 @@ from sources.pyvisa.pyvisa_dut_validation_v1.worlds import load_world_specs
 ROOT = Path(__file__).resolve().parents[2]
 _default_instance = ROOT.parent / "instance" / "sources" / "pyvisa" / "pyvisa_dut_validation_v1"
 _worktree_instance = (
-    ROOT.parent / "instance-docker-runner" / "pyvisa_dut_validation_v1"
+    ROOT.parent
+    / "instance-docker-runner"
+    / "sources"
+    / "pyvisa"
+    / "pyvisa_dut_validation_v1"
 )
 INSTANCE = Path(
     os.environ.get(

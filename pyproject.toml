@@ -32,6 +32,8 @@ include = ["instrument_benchmark_evaluator*", "sources*"]
 "sources.openfibsem.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
 
 [tool.pytest.ini_options]
+testpaths = ["tests", "sources"]
+norecursedirs = ["vendor"]
 markers = [
   "openfibsem: requires the pinned OpenFIBSEM source/runtime",
 ]

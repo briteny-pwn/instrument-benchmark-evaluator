@@ -4,9 +4,15 @@ Private evaluator implementation for the distributed instrument benchmark.
 This repository owns the PyVISA/pyvisa-sim environment, five instrument state
 machines, shared DUT world, raw transport gateway, hidden worlds, append-only
 evidence, independent oracle, causal constraints, safety gates, scoring,
-reference solution, and adversarial cases.
+reference solution, and adversarial cases. Evaluators are addressed by
+`(source_id, evaluator_id)` and live only at
+`sources/<source_id>/<evaluator_id>/`; each source's `source.yaml` is the
+authoritative registry. The pre-migration ungrouped package and manifest paths
+are invalid, with no compatibility fallback, alias, or search.
 
-The public process boundary is protocol version 1:
+The evaluator request boundary is protocol version 2 and carries
+`source_id`, `instance_id`, and `evaluator_id`. Candidate container protocol
+version 1 remains unchanged:
 
 ```bash
 python -m instrument_benchmark_evaluator.cli run \
@@ -69,7 +75,9 @@ prove the necessary order; diagnostic candidate JSON cannot establish a gate.
 
 Each step exports `scene.glb`, merged and component STL, SEM/FIB PNG, and
 `checkpoint.json`. The outer orchestrator copies validated evidence to
-`reports/fibsem_liftout_v1.artifacts/<world>/<step>/`. Infrastructure failures
+`reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`.
+The top-level FIBSEM report is schema version 4 and is published at
+`reports/openfibsem/fibsem_liftout_v1.json`. Infrastructure failures
 are retryable; state/order/safety/security failures are candidate outcomes.
 Passing applies only to the pinned simulation and does not establish physical
 microscope safety.
@@ -77,11 +85,18 @@ microscope safety.
 Run local tests with:
 
 ```bash
-PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover -s tests -v
-PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
-  -s sources/pyvisa/pyvisa_dut_validation_v1/tests -v
-PYTHONPATH=vendor/pyvisa-sim-iab:. python -m unittest discover \
-  -s sources/pyvisa/pyvisa_dut_validation_v2/tests -v
+PYTHONPATH=vendor/pyvisa-sim-iab:. python -m pytest -q
+```
+
+Default pytest collection intentionally covers the repository-owned `tests/`
+and `sources/` trees, not the copied upstream vendor suite. The vendored
+random-response compatibility case remains an explicit deterministic gate
+(the test resets its random seed for every parameter):
+
+```bash
+PYTHONPATH=vendor/pyvisa-sim-iab:. python -m pytest \
+  'vendor/pyvisa-sim-iab/pyvisa_sim/testsuite/test_all.py::test_multiple_outputs[ASRL5::INSTR]' \
+  -q
 ```
 
 Native Linux Docker checks are opt-in locally and mandatory in CI:
