@@ -28,3 +28,8 @@ include = ["instrument_benchmark_evaluator*", "evaluators*"]
 ]
 "evaluators.pyvisa_dut_validation_v2" = ["evaluator.yaml", "simulator.yaml"]
 "evaluators.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
+
+[tool.pytest.ini_options]
+markers = [
+  "openfibsem: requires the pinned OpenFIBSEM source/runtime",
+]

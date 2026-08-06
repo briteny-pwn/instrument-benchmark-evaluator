@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping
 
+from .metrics import Bounds, SceneSnapshot
+from .oracle import _canonical_geometry_hash
+
 
 REQUIRED_COMPONENTS = (
     "source.stl",
@@ -42,7 +45,11 @@ class ArtifactEvidence:
 
 
 def validate_checkpoint_bundle(
-    root: Path, *, expected_world: str, expected_step: str
+    root: Path,
+    *,
+    expected_world: str,
+    expected_step: str,
+    trusted_snapshot: SceneSnapshot | None = None,
 ) -> ArtifactEvidence:
     root = Path(root).resolve()
     if not root.is_dir():
@@ -82,6 +89,11 @@ def validate_checkpoint_bundle(
         raise ArtifactError("checkpoint journal sequence is invalid")
     journal_hash = _digest_field(checkpoint.get("journal_hash"), "journal")
     geometry_hash = _digest_field(checkpoint.get("geometry_hash"), "geometry")
+    if (
+        trusted_snapshot is not None
+        and geometry_hash != _canonical_geometry_hash(trusted_snapshot.parts)
+    ):
+        raise ArtifactError("checkpoint geometry hash does not match trusted snapshot")
     declared = checkpoint.get("artifacts")
     expected_payloads = expected - {"checkpoint.json"}
     if not isinstance(declared, dict) or set(declared) != expected_payloads:
@@ -106,6 +118,8 @@ def validate_checkpoint_bundle(
         elif relative.endswith(".glb"):
             _validate_glb(payload, relative)
         files[relative] = FileEvidence(len(payload), digest)
+    if trusted_snapshot is not None:
+        _validate_snapshot_meshes(root, trusted_snapshot)
     checkpoint_payload = checkpoint_path.read_bytes()
     bundle_index = {
         **{name: evidence.sha256 for name, evidence in sorted(files.items())},
@@ -181,3 +195,62 @@ def _validate_glb(payload: bytes, relative: str) -> None:
         raise ArtifactError(f"invalid GLB JSON: {relative}") from exc
     if not isinstance(document, dict) or document.get("asset", {}).get("version") != "2.0":
         raise ArtifactError(f"invalid GLB asset: {relative}")
+
+
+def _validate_snapshot_meshes(root: Path, snapshot: SceneSnapshot) -> None:
+    expected_roles = {
+        "source.stl": {"source"},
+        "sample.stl": {"sample"},
+        "needle.stl": {"needle"},
+        "target.stl": {"target"},
+        "deposition.stl": {"deposition"},
+    }
+    expected = {
+        "scene.stl": _parts_bounds(snapshot.parts),
+        **{
+            f"components/{filename}": _parts_bounds(
+                tuple(part for part in snapshot.parts if part.role in roles)
+            )
+            for filename, roles in expected_roles.items()
+        },
+    }
+    for relative, bounds in expected.items():
+        if bounds is None:
+            raise ArtifactError(f"trusted snapshot is missing component: {relative}")
+        actual = _binary_stl_bounds((root / relative).read_bytes(), relative)
+        if any(
+            abs(expected_value - actual_value) > 1e-5
+            for expected_value, actual_value in zip(
+                (*bounds.minimum, *bounds.maximum),
+                (*actual.minimum, *actual.maximum),
+                strict=True,
+            )
+        ):
+            raise ArtifactError(f"artifact bounds disagree with trusted snapshot: {relative}")
+
+
+def _parts_bounds(parts: tuple[object, ...]) -> Bounds | None:
+    meshes = [getattr(part, "mesh", None) for part in parts]
+    bounds = [mesh.bounds for mesh in meshes if mesh is not None]
+    if not bounds:
+        return None
+    return Bounds(
+        tuple(min(item.minimum[index] for item in bounds) for index in range(3)),  # type: ignore[arg-type]
+        tuple(max(item.maximum[index] for item in bounds) for index in range(3)),  # type: ignore[arg-type]
+    )
+
+
+def _binary_stl_bounds(payload: bytes, relative: str) -> Bounds:
+    if len(payload) < 84:
+        raise ArtifactError(f"trusted comparison requires binary STL: {relative}")
+    count = struct.unpack("<I", payload[80:84])[0]
+    if count < 1 or len(payload) != 84 + 50 * count:
+        raise ArtifactError(f"trusted comparison requires binary STL: {relative}")
+    vertices: list[tuple[float, float, float]] = []
+    for index in range(count):
+        values = struct.unpack("<12fH", payload[84 + index * 50 : 134 + index * 50])
+        vertices.extend((values[3:6], values[6:9], values[9:12]))
+    return Bounds(
+        tuple(min(vertex[index] for vertex in vertices) for index in range(3)),  # type: ignore[arg-type]
+        tuple(max(vertex[index] for vertex in vertices) for index in range(3)),  # type: ignore[arg-type]
+    )
