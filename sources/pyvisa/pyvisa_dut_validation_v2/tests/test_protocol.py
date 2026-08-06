@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import math
+import sys
 import unittest
 
 from sources.pyvisa.pyvisa_dut_validation_v2.protocol import (
     MAX_FRAME_BYTES,
+    MAX_JSON_INTEGER_DIGITS,
     ProtocolError,
     decode_request,
     decode_response,
@@ -133,6 +135,33 @@ class TrustedProtocolTests(unittest.TestCase):
         for stream in streams:
             with self.assertRaises(ProtocolError):
                 recv_message(stream)
+
+    def test_frame_rejects_oversized_integer_without_runtime_limit(self) -> None:
+        previous_limit = None
+        if hasattr(sys, "get_int_max_str_digits") and hasattr(
+            sys, "set_int_max_str_digits"
+        ):
+            previous_limit = sys.get_int_max_str_digits()
+            sys.set_int_max_str_digits(0)
+        try:
+            for sign in (b"", b"-"):
+                payload = (
+                    b'{"value":'
+                    + sign
+                    + b"1" * MAX_JSON_INTEGER_DIGITS
+                    + b"}"
+                )
+                frame = len(payload).to_bytes(4, "big") + payload
+                self.assertIsInstance(
+                    recv_message(ChunkSocket([frame]))["value"], int
+                )
+                payload = payload[:-1] + b"1}"
+                frame = len(payload).to_bytes(4, "big") + payload
+                with self.subTest(sign=sign), self.assertRaises(ProtocolError):
+                    recv_message(ChunkSocket([frame]))
+        finally:
+            if previous_limit is not None:
+                sys.set_int_max_str_digits(previous_limit)
 
     def test_request_rejects_surrogate_strings_before_broker_dispatch(self) -> None:
         invalid = "\ud800"

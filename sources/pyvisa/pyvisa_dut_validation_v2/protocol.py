@@ -14,6 +14,8 @@ PROTOCOL_VERSION = 1
 MAX_FRAME_BYTES = 1_048_576
 MAX_WIRE_DEPTH = 16
 MAX_WIRE_ITEMS = 4096
+# Keep integer parsing resource use independent of interpreter defaults.
+MAX_JSON_INTEGER_DIGITS = 4096
 WireValue: TypeAlias = (
     None | bool | int | float | str | bytes | tuple["WireValue", ...]
 )
@@ -288,6 +290,7 @@ def recv_message(stream: Any) -> dict[str, object]:
             text,
             object_pairs_hook=_unique_object,
             parse_constant=_reject_json_constant,
+            parse_int=_parse_json_int,
         )
     except (UnicodeDecodeError, ValueError, RecursionError) as exc:
         raise ProtocolError("invalid JSON payload") from exc
@@ -323,6 +326,13 @@ def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 def _reject_json_constant(value: str) -> None:
     raise ProtocolError(f"invalid JSON constant: {value}")
+
+
+def _parse_json_int(value: str) -> int:
+    digits = value[1:] if value.startswith("-") else value
+    if len(digits) > MAX_JSON_INTEGER_DIGITS:
+        raise ValueError("JSON integer token exceeds protocol limit")
+    return int(value)
 
 
 def _require_utf8(value: str) -> None:
