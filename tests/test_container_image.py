@@ -33,7 +33,7 @@ class FakeDockerClient:
 
     def run(self, arguments, *, timeout=None, check=True):
         self.calls.append(list(arguments))
-        if arguments and arguments[0] == "build":
+        if arguments[:2] == ["buildx", "build"]:
             self.context_files = {
                 path.name for path in Path(arguments[-1]).iterdir()
             }
@@ -121,7 +121,9 @@ class ContainerImageTests(unittest.TestCase):
                 instance_id="pyvisa_dut_validation_v1",
                 temporary_root=Path(directory),
             )
-            build_call = next(call for call in client.calls if call[0] == "build")
+            build_call = next(
+                call for call in client.calls if call[:2] == ["buildx", "build"]
+            )
             self.assertIn("--network=none", build_call)
             self.assertIn("--platform=linux/amd64", build_call)
             self.assertIn("--build-arg=SOURCE_DATE_EPOCH=0", build_call)

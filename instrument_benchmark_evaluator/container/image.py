@@ -121,6 +121,7 @@ def _build_in_context(
         shutil.copy2(source, target)
     client.run(
         [
+            "buildx",
             "build",
             "--build-arg=SOURCE_DATE_EPOCH=0",
             "--network=none",
