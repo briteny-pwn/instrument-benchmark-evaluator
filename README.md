@@ -50,6 +50,30 @@ This nested-container architecture is supported only on native Linux Docker.
 Outer failures to build, start, use the daemon, finish, or produce a safe report
 are retry-eligible infrastructure failures rather than candidate failures.
 
+## OpenFIBSEM lift-out evaluator
+
+`fibsem_liftout_v1` is a separate runtime profile, not a PyVISA-derived
+instance. It pins OpenFIBSEM commit
+`2ebccb8b9721234ca66bb94de36d0f7cfe047af9` and starts a simulator sibling as
+UID `11001:11001`; the candidate sibling remains UID `10001:10001`. Candidate
+code implements
+`run_experiment(microscope, scenario, checkpoint, output_dir) -> dict` and uses
+only the public `fibsem_iab` API.
+
+The suite runs `nominal`, four hidden fixed worlds, and five deterministic
+seeded worlds. Preflight precedes destructive ROI work. The four semantic
+boundaries are `step_1` sample preparation, `step_2` needle-connected source
+release, `step_3` target-connected placement, and `step_4` selective needle
+separation/retraction. Scoring uses the trusted mesh snapshot and journal to
+prove the necessary order; diagnostic candidate JSON cannot establish a gate.
+
+Each step exports `scene.glb`, merged and component STL, SEM/FIB PNG, and
+`checkpoint.json`. The outer orchestrator copies validated evidence to
+`reports/fibsem_liftout_v1.artifacts/<world>/<step>/`. Infrastructure failures
+are retryable; state/order/safety/security failures are candidate outcomes.
+Passing applies only to the pinned simulation and does not establish physical
+microscope safety.
+
 Run local tests with:
 
 ```bash
@@ -68,4 +92,12 @@ IAB_RUN_DOCKER_TESTS=1 python -m unittest \
   tests.integration.test_container_isolation_linux \
   tests.integration.test_docker_full_suite_linux \
   tests.integration.test_v2_dual_container_linux -v
+```
+
+The native Linux FIBSEM gates are separately opt-in:
+
+```bash
+IAB_RUN_FIBSEM_DOCKER_TESTS=1 python -m pytest \
+  tests/integration/test_fibsem_dual_container_linux.py \
+  tests/integration/test_fibsem_full_suite_linux.py -q
 ```
