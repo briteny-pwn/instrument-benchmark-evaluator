@@ -112,6 +112,7 @@ class DockerCandidateBackend:
             world_id=world_id,
             expected_output_uid=10001,
             visa_socket_env=(instance.instance_id == "pyvisa_dut_validation_v2"),
+            fibsem_mode=(instance.instance_id == "fibsem_liftout_v1"),
         )
 
 

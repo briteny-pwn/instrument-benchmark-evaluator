@@ -122,9 +122,17 @@ def _candidate_main(paths) -> int:
         if not callable(entrypoint):
             print("invalid entrypoint: run_experiment is required", file=sys.stderr)
             return 2
-        returned = entrypoint(str(paths.endpoint), str(paths.output))
+        if os.environ.get("IAB_FIBSEM_MODE") == "1":
+            returned = _invoke_fibsem_entrypoint(entrypoint, paths)
+        else:
+            returned = entrypoint(str(paths.endpoint), str(paths.output))
         if not isinstance(returned, dict):
             raise ValueError("run_experiment must return a dictionary")
+        if os.environ.get("IAB_FIBSEM_MODE") == "1" and not paths.output.exists():
+            paths.output.write_text(
+                json.dumps(returned, sort_keys=True, separators=(",", ":")),
+                encoding="utf-8",
+            )
         if not paths.output.is_file():
             raise ValueError("run_experiment did not write result.json")
         written = json.loads(paths.output.read_text(encoding="utf-8"))
@@ -143,6 +151,32 @@ def _candidate_main(paths) -> int:
     except Exception:
         traceback.print_exc()
         return 1
+
+
+def _fibsem_runtime(paths):
+    from fibsem_iab import (
+        MicroscopeClient,
+        RpcClient,
+        checkpoint_callback,
+        load_scenario,
+    )
+
+    scenario = load_scenario(paths.workspace / "scenario.json")
+    microscope = MicroscopeClient(RpcClient(paths.endpoint, timeout_seconds=30.0))
+    return microscope, scenario, checkpoint_callback(microscope)
+
+
+def _invoke_fibsem_entrypoint(entrypoint, paths, *, runtime_factory=None):
+    factory = runtime_factory or _fibsem_runtime
+    microscope, scenario, checkpoint = factory(paths)
+    try:
+        return entrypoint(microscope, scenario, checkpoint, paths.output_root)
+    finally:
+        close = getattr(microscope, "close", None)
+        if not callable(close):
+            close = getattr(getattr(microscope, "_rpc", None), "close", None)
+        if callable(close):
+            close()
 
 
 def _supervise(paths) -> int:

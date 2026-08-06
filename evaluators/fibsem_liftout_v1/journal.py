@@ -94,6 +94,37 @@ class EventJournal:
         self.world_id = world_id
         self._events: list[JournalEvent] = []
 
+    @classmethod
+    def from_records(
+        cls,
+        records: Sequence[Mapping[str, object]],
+        *,
+        run_id: str,
+        world_id: str,
+        require_terminal: bool = False,
+    ) -> "EventJournal":
+        validate_records(
+            records,
+            run_id,
+            world_id,
+            require_terminal=require_terminal,
+        )
+        journal = cls(run_id, world_id)
+        journal._events = [
+            JournalEvent(
+                sequence=int(record["sequence"]),
+                run_id=run_id,
+                world_id=world_id,
+                recorded_ns=int(record["recorded_ns"]),
+                kind=str(record["kind"]),
+                fields=MappingProxyType(dict(record["fields"])),  # type: ignore[arg-type]
+                previous_hash=str(record["previous_hash"]),
+                event_hash=str(record["event_hash"]),
+            )
+            for record in records
+        ]
+        return journal
+
     @property
     def events(self) -> tuple[JournalEvent, ...]:
         return tuple(self._events)
@@ -116,7 +147,7 @@ class EventJournal:
             "sequence": len(self._events) + 1,
             "run_id": self.run_id,
             "world_id": self.world_id,
-            "recorded_ns": time.time_ns(),
+            "recorded_ns": time.monotonic_ns(),
             "kind": kind,
             "fields": plain_fields,
             "previous_hash": self.head_hash,
@@ -165,6 +196,7 @@ def validate_records(
     require_terminal: bool = False,
 ) -> str:
     previous = GENESIS_HASH
+    previous_timestamp = 0
     required = {
         "schema_version",
         "sequence",
@@ -184,18 +216,27 @@ def validate_records(
             raise JournalError("journal identity mismatch")
         if record["schema_version"] != JOURNAL_SCHEMA_VERSION:
             raise JournalError("journal schema version mismatch")
-        if record["sequence"] != expected_sequence:
+        if (
+            isinstance(record["sequence"], bool)
+            or not isinstance(record["sequence"], int)
+            or record["sequence"] != expected_sequence
+        ):
             raise JournalError("journal sequence mismatch")
         if (
             isinstance(record["recorded_ns"], bool)
             or not isinstance(record["recorded_ns"], int)
             or record["recorded_ns"] <= 0
+            or record["recorded_ns"] < previous_timestamp
         ):
             raise JournalError("journal timestamp is invalid")
         if not isinstance(record["kind"], str) or not record["kind"]:
             raise JournalError("journal event kind is invalid")
         if not isinstance(record["fields"], dict):
             raise JournalError("journal event fields are invalid")
+        if not _is_digest(record["previous_hash"]) or not _is_digest(
+            record["event_hash"]
+        ):
+            raise JournalError("journal event digest is invalid")
         if record["previous_hash"] != previous:
             raise JournalError("journal previous hash mismatch")
         claimed = record.pop("event_hash")
@@ -203,11 +244,20 @@ def validate_records(
             raise JournalError("journal event hash mismatch")
         assert isinstance(claimed, str)
         previous = claimed
+        previous_timestamp = record["recorded_ns"]  # type: ignore[assignment]
     if require_terminal and (
         not records or records[-1].get("kind") != "run.terminal"
     ):
         raise JournalError("journal terminal event is missing")
     return previous
+
+
+def _is_digest(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:

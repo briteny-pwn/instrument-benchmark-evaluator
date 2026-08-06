@@ -23,6 +23,7 @@ PURPOSE_PHASES = {
     "target_joint": "step_3",
     "needle_separation": "step_4",
 }
+INVALID_DISTANCE_UM = 1.0e12
 
 
 @dataclass(frozen=True)
@@ -97,8 +98,8 @@ class GeometryOracle:
         target_position = self.scenario.world_position("target_pose")
         sample_pose = snapshot.poses.get("sample")
         if sample_pose is None:
-            position_error = math.inf
-            orientation_error = math.inf
+            position_error = INVALID_DISTANCE_UM
+            orientation_error = INVALID_DISTANCE_UM
         else:
             position_error = _norm(
                 tuple(
@@ -121,7 +122,9 @@ class GeometryOracle:
             )
         needle_pose = snapshot.poses.get("needle")
         if sample_pose is None or needle_pose is None:
-            retraction_distance = math.inf if not snapshot.needle_inserted else 0.0
+            retraction_distance = (
+                INVALID_DISTANCE_UM if not snapshot.needle_inserted else 0.0
+            )
         else:
             retraction_distance = _norm(
                 tuple(

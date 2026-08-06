@@ -12,9 +12,13 @@ from .backend import OpenFibsemBackend
 from .checkpoint_exporter import CheckpointExporter
 from .geometry.oracle import GeometryOracle
 from .instrumented_microscope import OperationDispatcher
-from .journal import EventJournal
+from .journal import EventJournal, canonical_digest
 from .models import ScenarioSpec
-from .protocol import FibsemBroker
+from .protocol import FibsemBroker, ProtocolError
+
+
+class ServiceStopRequested(Exception):
+    """The trusted outer evaluator requested graceful finalization."""
 
 
 @dataclass(frozen=True)
@@ -80,6 +84,13 @@ class FibsemService:
                 raise RuntimeError("trusted checkpoint export failed") from exc
         return self.backend.invoke(operation, arguments)
 
+    def record_protocol_rejection(self, error_type: str) -> None:
+        self.journal.append(
+            "rpc.rejected",
+            reason="candidate protocol not allowed",
+            error_type=error_type,
+        )
+
     def checkpoint(
         self, step_id: str, summary: Mapping[str, object] | None = None
     ) -> dict[str, object]:
@@ -99,6 +110,8 @@ class FibsemService:
             world_id=self.scenario.scenario_id,
             journal_sequence=self.journal.sequence,
             journal_hash=self.journal.head_hash,
+            scenario_digest=canonical_digest(self.scenario.to_dict()),
+            geometry_metrics=metrics.to_dict(),
         )
         self.checkpoints.append(step_id)
         self.frozen_checkpoints[step_id] = FrozenCheckpoint(
@@ -144,15 +157,35 @@ class FibsemService:
             "post_cleanup": post_cleanup,
             "error_type": cleanup_error,
         }
-        terminal_outcome = outcome if cleanup_error is None else "cleanup_failure"
+        trusted_failure = any(
+            event.kind == "rpc.failed" for event in self.journal.events
+        )
+        terminal_outcome = (
+            "cleanup_failure"
+            if cleanup_error is not None
+            else "infrastructure_failure"
+            if trusted_failure
+            else outcome
+        )
         self.journal.append("run.terminal", outcome=terminal_outcome, cleanup=cleanup)
         journal_path, journal_summary = self.journal.export(self.exporter.evidence_root)
         summary: dict[str, object] = {
             "schema_version": 1,
             "run_id": self.journal.run_id,
             "world_id": self.scenario.scenario_id,
+            "scenario_digest": canonical_digest(self.scenario.to_dict()),
             "outcome": terminal_outcome,
             "checkpoints": list(self.checkpoints),
+            "checkpoint_evidence": {
+                step_id: {
+                    "geometry": frozen.geometry.to_dict(),
+                    "artifact_digest": frozen.artifacts.bundle_sha256,
+                    "artifact_path": (
+                        f"artifacts/{self.scenario.scenario_id}/{step_id}"
+                    ),
+                }
+                for step_id, frozen in self.frozen_checkpoints.items()
+            },
             "journal": {
                 "path": journal_path.name,
                 "summary_path": journal_summary.name,
@@ -192,7 +225,7 @@ def run_service(
     outcome = "completed"
     try:
         server.bind(str(socket_path))
-        os.chmod(socket_path, 0o660)
+        os.chmod(socket_path, 0o666)
         server.listen(1)
         connection, _ = server.accept()
         with connection:
@@ -200,6 +233,13 @@ def run_service(
         if service.checkpoints != ["step_1", "step_2", "step_3", "step_4"]:
             outcome = "candidate_incomplete"
             forced = True
+    except ProtocolError as exc:
+        service.record_protocol_rejection(type(exc).__name__)
+        outcome = "candidate_failure"
+        forced = True
+    except ServiceStopRequested:
+        outcome = "candidate_incomplete"
+        forced = True
     except Exception:
         outcome = "infrastructure_failure"
         forced = True

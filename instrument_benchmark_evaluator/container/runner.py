@@ -43,6 +43,7 @@ def run_container(
     world_id: str,
     expected_output_uid: int | None = None,
     visa_socket_env: bool = False,
+    fibsem_mode: bool = False,
 ) -> ContainerProcessResult:
     name = _container_name(run_id, world_id)
     container_id: str | None = None
@@ -72,6 +73,7 @@ def run_container(
                 run_id=run_id,
                 world_id=world_id,
                 visa_socket_env=visa_socket_env,
+                fibsem_mode=fibsem_mode,
             )
         )
         container_id = created.stdout.strip()
@@ -168,6 +170,7 @@ def _create_arguments(
     run_id: str,
     world_id: str,
     visa_socket_env: bool = False,
+    fibsem_mode: bool = False,
 ) -> list[str]:
     solution = f"{contract.workdir}/solution.py"
     returned = str(Path(contract.output_path).with_name("return.json"))
@@ -209,6 +212,8 @@ def _create_arguments(
     ]
     if visa_socket_env:
         arguments.append("--env=IAB_VISA_SOCKET=/run/iab/visa.sock")
+    if fibsem_mode:
+        arguments.append("--env=IAB_FIBSEM_MODE=1")
     arguments.extend(
         [
             image_digest,

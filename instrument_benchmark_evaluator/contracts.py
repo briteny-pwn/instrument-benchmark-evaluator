@@ -54,6 +54,18 @@ class RunSettings:
     shared_run_root: Path | None = None
 
 
+def evaluator_kind(instance_id: str) -> str:
+    kinds = {
+        "pyvisa_dut_validation_v1": "pyvisa_v1",
+        "pyvisa_dut_validation_v2": "pyvisa_v2",
+        "fibsem_liftout_v1": "fibsem",
+    }
+    try:
+        return kinds[instance_id]
+    except KeyError as exc:
+        raise ContractError("unsupported instance_id") from exc
+
+
 def load_evaluator_request(path: Path) -> EvaluatorRequest:
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -76,9 +88,10 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
     if not isinstance(value, dict):
         raise ContractError("request fields do not match protocol version 1")
     instance_id = value.get("instance_id")
-    if instance_id == "pyvisa_dut_validation_v1":
+    kind = evaluator_kind(instance_id) if isinstance(instance_id, str) else None
+    if kind == "pyvisa_v1":
         expected_fields = required
-    elif instance_id == "pyvisa_dut_validation_v2":
+    elif kind in {"pyvisa_v2", "fibsem"}:
         expected_fields = required | {"evaluator_image_id"}
     else:
         raise ContractError("unsupported instance_id")
@@ -106,7 +119,7 @@ def load_evaluator_request(path: Path) -> EvaluatorRequest:
         raise ContractError("run_id must be a non-empty string")
     evaluator_image_id = (
         _sha256_digest(value["evaluator_image_id"], "evaluator_image_id")
-        if instance_id == "pyvisa_dut_validation_v2"
+        if kind in {"pyvisa_v2", "fibsem"}
         else None
     )
     return EvaluatorRequest(
@@ -137,7 +150,11 @@ def load_instance_settings(
         raise ContractError(f"cannot load instance manifest: {exc}") from exc
     if (
         expected_evaluator_id
-        not in {"pyvisa_dut_validation_v1", "pyvisa_dut_validation_v2"}
+        not in {
+            "pyvisa_dut_validation_v1",
+            "pyvisa_dut_validation_v2",
+            "fibsem_liftout_v1",
+        }
         or not isinstance(value, dict)
         or value.get("instance_id") != expected_evaluator_id
     ):

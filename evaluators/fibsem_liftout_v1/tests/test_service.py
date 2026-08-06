@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 from evaluators.fibsem_liftout_v1.checkpoint_exporter import CheckpointExporter
 from evaluators.fibsem_liftout_v1.journal import EventJournal
@@ -33,6 +34,17 @@ def test_checkpoint_freezes_before_imaging_and_export(tmp_path: Path) -> None:
     assert receipt["step_id"] == "step_1"
     assert receipt["artifact_digest"]
 
+    summary = service.finalize(outcome="candidate_incomplete", forced=True)
+    checkpoint = summary["checkpoint_evidence"]["step_1"]
+    assert checkpoint["artifact_digest"] == receipt["artifact_digest"]
+    assert checkpoint["geometry"]["canonical_geometry_hash"]
+    assert checkpoint["artifact_path"] == "artifacts/nominal/step_1"
+    manifest = json.loads(
+        (tmp_path / checkpoint["artifact_path"] / "checkpoint.json").read_text()
+    )
+    assert manifest["scenario_digest"]
+    assert manifest["geometry"] == checkpoint["geometry"]
+
 
 def test_finalize_records_pre_and_post_forced_cleanup_state(tmp_path: Path) -> None:
     backend = RecordingBackend()
@@ -46,3 +58,38 @@ def test_finalize_records_pre_and_post_forced_cleanup_state(tmp_path: Path) -> N
     assert backend.calls[-3:] == ["cancel", "force_safe", "close"]
     assert (tmp_path / "journal.jsonl").is_file()
     assert (tmp_path / "service-summary.json").is_file()
+
+
+def test_candidate_protocol_failure_is_journaled_as_rejected_not_infrastructure(
+    tmp_path: Path,
+) -> None:
+    backend = RecordingBackend()
+    service = make_service(backend, tmp_path)
+
+    service.record_protocol_rejection("ProtocolError")
+    summary = service.finalize(outcome="candidate_failure", forced=True)
+
+    rejected = [
+        event for event in service.journal.events if event.kind == "rpc.rejected"
+    ]
+    assert rejected[0].fields == {
+        "reason": "candidate protocol not allowed",
+        "error_type": "ProtocolError",
+    }
+    assert summary["outcome"] == "candidate_failure"
+
+
+def test_trusted_rpc_failure_is_reported_as_infrastructure(tmp_path: Path) -> None:
+    backend = RecordingBackend()
+    service = make_service(backend, tmp_path)
+    service.journal.append(
+        "rpc.failed",
+        request_id="req-00000001",
+        operation="acquire_image",
+        error_type="OpenFibsemRuntimeError",
+    )
+
+    summary = service.finalize(outcome="candidate_incomplete", forced=True)
+
+    assert summary["outcome"] == "infrastructure_failure"
+    assert service.journal.events[-1].fields["outcome"] == "infrastructure_failure"

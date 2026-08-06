@@ -51,6 +51,8 @@ class CheckpointExporter:
         world_id: str,
         journal_sequence: int,
         journal_hash: str,
+        scenario_digest: str | None = None,
+        geometry_metrics: Mapping[str, object] | None = None,
     ) -> ArtifactEvidence:
         if set(images) != {"SEM", "FIB"}:
             raise ValueError("checkpoint images must contain SEM and FIB")
@@ -59,6 +61,12 @@ class CheckpointExporter:
         if journal_sequence < 1:
             raise ValueError("journal sequence is invalid")
         _digest(journal_hash, "journal")
+        if (scenario_digest is None) != (geometry_metrics is None):
+            raise ValueError(
+                "scenario digest and geometry metrics must be supplied together"
+            )
+        if scenario_digest is not None:
+            _digest(scenario_digest, "scenario")
         destination = self.evidence_root / "artifacts" / world_id / snapshot.checkpoint_id
         if destination.exists():
             raise FileExistsError(f"checkpoint already exists: {snapshot.checkpoint_id}")
@@ -104,6 +112,11 @@ class CheckpointExporter:
                     for relative, payload in sorted(payloads.items())
                 },
             }
+            if scenario_digest is not None and geometry_metrics is not None:
+                if geometry_metrics.get("canonical_geometry_hash") != geometry_hash:
+                    raise ValueError("geometry metrics do not match trusted snapshot")
+                checkpoint["scenario_digest"] = scenario_digest
+                checkpoint["geometry"] = dict(geometry_metrics)
             _write_fsync(
                 temporary / "checkpoint.json",
                 json.dumps(

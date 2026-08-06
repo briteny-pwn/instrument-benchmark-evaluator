@@ -172,7 +172,13 @@ class ContainerRunnerTests(unittest.TestCase):
         (self.workspace / "solution.py").write_text("# candidate")
         (self.gateway).touch()
 
-    def invoke(self, client: FakeClient, *, visa_socket_env: bool = False):
+    def invoke(
+        self,
+        client: FakeClient,
+        *,
+        visa_socket_env: bool = False,
+        fibsem_mode: bool = False,
+    ):
         client.inspect_value["Image"] = self.contract.lock.image_digest
         if client.exit_code == 0 and not client.timeout:
             value = {"ok": True}
@@ -190,6 +196,7 @@ class ContainerRunnerTests(unittest.TestCase):
             run_id="run-1",
             world_id="nominal",
             visa_socket_env=visa_socket_env,
+            fibsem_mode=fibsem_mode,
         )
 
     def test_completed_uses_all_hardening_flags_and_cleans_up(self) -> None:
@@ -254,6 +261,19 @@ class ContainerRunnerTests(unittest.TestCase):
             item for item in v2.calls[0] if "dst=/run/iab" in item
         )
         self.assertTrue(transport.endswith(",readonly"))
+
+    def test_fibsem_adds_only_explicit_bootstrap_mode_environment(self) -> None:
+        client = FakeClient()
+        self.invoke(client, fibsem_mode=True)
+
+        environment = [
+            item for item in client.calls[0] if item.startswith("--env=")
+        ]
+        self.assertEqual(
+            environment,
+            ["--env=IAB_CONTAINER_MODE=1", "--env=IAB_FIBSEM_MODE=1"],
+        )
+        self.assertNotIn("IAB_VISA_SOCKET", " ".join(client.calls[0]))
 
 
 if __name__ == "__main__":

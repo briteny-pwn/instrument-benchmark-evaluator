@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import signal
 import sys
 from pathlib import Path
 from typing import Callable
@@ -12,6 +13,7 @@ from . import PROTOCOL_VERSION
 from .contracts import (
     ContractError,
     RunSettings,
+    evaluator_kind,
     load_evaluator_request,
     load_instance_settings,
 )
@@ -26,6 +28,12 @@ V2_MANIFEST = (
     Path(__file__).resolve().parents[1]
     / "evaluators"
     / "pyvisa_dut_validation_v2"
+    / "evaluator.yaml"
+)
+FIBSEM_MANIFEST = (
+    Path(__file__).resolve().parents[1]
+    / "evaluators"
+    / "fibsem_liftout_v1"
     / "evaluator.yaml"
 )
 WORLD_DIRECTORY = Path(world_resources.__file__).resolve().parent
@@ -43,6 +51,11 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--evidence", type=Path, required=True)
     serve.add_argument("--simulator", type=Path)
     serve.add_argument("--run-id", required=True)
+    fibsem = subparsers.add_parser("serve-fibsem-sim")
+    fibsem.add_argument("--world", type=Path, required=True)
+    fibsem.add_argument("--endpoint", type=Path, required=True)
+    fibsem.add_argument("--evidence", type=Path, required=True)
+    fibsem.add_argument("--run-id", required=True)
     return parser
 
 
@@ -53,6 +66,13 @@ def main(
     sim_runner_factory: Callable[[str], object] | None = None,
 ) -> int:
     arguments = build_parser().parse_args(argv)
+    if arguments.command == "serve-fibsem-sim":
+        return _serve_fibsem_sim(
+            world=arguments.world.resolve(),
+            endpoint=arguments.endpoint.resolve(),
+            evidence=arguments.evidence.resolve(),
+            run_id=arguments.run_id,
+        )
     if arguments.command == "serve-sim":
         service_arguments = [
             "--world",
@@ -75,17 +95,23 @@ def main(
         instance = load_instance_settings(
             request.instance_path, expected_evaluator_id=request.instance_id
         )
-        manifest_path = (
-            V2_MANIFEST
-            if request.instance_id == "pyvisa_dut_validation_v2"
-            else MANIFEST
-        )
+        kind = evaluator_kind(request.instance_id)
+        manifest_path = {
+            "pyvisa_v1": MANIFEST,
+            "pyvisa_v2": V2_MANIFEST,
+            "fibsem": FIBSEM_MANIFEST,
+        }[kind]
         manifest = yaml.safe_load(
             manifest_path.read_text(encoding="utf-8")
         )
+        fixed_worlds = (
+            ("nominal", "small", "large", "needle_offset", "target_pose")
+            if kind == "fibsem"
+            else tuple(manifest["fixed_worlds"])
+        )
         settings = RunSettings(
             instance_path=request.instance_path,
-            fixed_worlds=tuple(manifest["fixed_worlds"]),
+            fixed_worlds=fixed_worlds,
             repeated_worlds=request.repeated_worlds,
             timeout_seconds=request.timeout_seconds,
             max_output_bytes=request.max_output_bytes,
@@ -102,7 +128,7 @@ def main(
                 client=docker,
                 shared_run_root=request.shared_run_root,
             )
-        if request.instance_id == "pyvisa_dut_validation_v2":
+        if kind == "pyvisa_v2":
             from evaluators.pyvisa_dut_validation_v1.worlds import (
                 load_world_specs,
             )
@@ -129,6 +155,27 @@ def main(
                 sim_runner=sim_runner,
                 repeated_base_seed=request.repeated_base_seed,
             ).to_dict()
+        elif kind == "fibsem":
+            from .container.fibsem_sim_runner import FibsemSimContainerRunner
+            from .fibsem_run import run_fibsem_full_suite
+
+            assert request.evaluator_image_id is not None
+            if sim_runner_factory is not None:
+                sim_runner = sim_runner_factory(request.evaluator_image_id)
+            else:
+                docker = docker or DockerClient()
+                sim_runner = FibsemSimContainerRunner(
+                    client=docker,
+                    evaluator_image_id=request.evaluator_image_id,
+                )
+            report = run_fibsem_full_suite(
+                benchmark=settings,
+                instance=instance,
+                candidate_path=request.candidate_path,
+                backend=backend,
+                sim_runner=sim_runner,
+                repeated_base_seed=request.repeated_base_seed,
+            ).to_dict()
         else:
             report = run_full_suite(
                 benchmark=settings,
@@ -138,11 +185,12 @@ def main(
                 repeated_base_seed=request.repeated_base_seed,
                 backend=backend,
             ).to_dict()
-        report["evaluator"] = {
-            "id": request.instance_id,
-            "protocol_version": PROTOCOL_VERSION,
-            "run_id": request.run_id,
-        }
+        if kind != "fibsem":
+            report["evaluator"] = {
+                "id": request.instance_id,
+                "protocol_version": PROTOCOL_VERSION,
+                "run_id": request.run_id,
+            }
         arguments.report.parent.mkdir(parents=True, exist_ok=True)
         arguments.report.write_text(
             json.dumps(report, indent=2, sort_keys=True) + "\n",
@@ -161,6 +209,30 @@ def _serve_sim(argv: list[str]) -> int:
     from evaluators.pyvisa_dut_validation_v2.service import main as service_main
 
     return service_main(argv)
+
+
+def _serve_fibsem_sim(
+    *, world: Path, endpoint: Path, evidence: Path, run_id: str
+) -> int:
+    from evaluators.fibsem_liftout_v1.service import (
+        ServiceStopRequested,
+        run_service,
+    )
+
+    previous = signal.getsignal(signal.SIGTERM)
+
+    def stop(_signum, _frame):
+        raise ServiceStopRequested("outer evaluator requested finalization")
+
+    signal.signal(signal.SIGTERM, stop)
+    try:
+        run_service(world, endpoint, evidence, run_id)
+        return 0
+    except Exception as exc:
+        print(f"FIBSEM simulator failure: {exc}", file=sys.stderr)
+        return 70
+    finally:
+        signal.signal(signal.SIGTERM, previous)
 
 
 if __name__ == "__main__":
