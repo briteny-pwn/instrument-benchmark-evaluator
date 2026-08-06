@@ -130,12 +130,13 @@ def validate_report(value: object) -> dict[str, object]:
             _score(step_scores[step], f"world {step}: {world_id}", maximum=maximum)
         _score(world.get("artifact_score"), f"artifact score: {world_id}", maximum=10)
         checkpoints = world.get("checkpoints")
-        if not isinstance(checkpoints, Mapping) or set(checkpoints) != {
-            "step_1",
-            "step_2",
-            "step_3",
-            "step_4",
-        }:
+        checkpoint_order = ["step_1", "step_2", "step_3", "step_4"]
+        if (
+            not isinstance(checkpoints, Mapping)
+            or list(checkpoints) != checkpoint_order[: len(checkpoints)]
+            or world.get("strict_pass")
+            and len(checkpoints) != 4
+        ):
             raise ReportError(f"checkpoint evidence is incomplete: {world_id}")
         _boolean_mapping(world.get("strict_gates"), f"world strict gates: {world_id}")
         _score(
