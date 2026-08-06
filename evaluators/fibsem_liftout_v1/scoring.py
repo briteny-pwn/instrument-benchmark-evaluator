@@ -385,11 +385,10 @@ def _journal_markers(
     def operation_sequences(name: str) -> list[int]:
         return [sequence for sequence, operation, _details, _result in operations if operation == name]
 
-    image_by_beam = {
-        details.get("beam"): sequence
-        for sequence, operation, details, _result in operations
-        if operation == "acquire_image"
-    }
+    image_by_beam: dict[object, int] = {}
+    for sequence, operation, details, _result in operations:
+        if operation == "acquire_image":
+            image_by_beam.setdefault(details.get("beam"), sequence)
     required_preflight = [
         _first(operation_sequences("ping")),
         _first(operation_sequences("capabilities")),

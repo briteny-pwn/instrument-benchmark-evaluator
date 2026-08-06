@@ -4,6 +4,7 @@ import json
 import os
 import socket
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Protocol
 
@@ -14,6 +15,13 @@ from .instrumented_microscope import OperationDispatcher
 from .journal import EventJournal
 from .models import ScenarioSpec
 from .protocol import FibsemBroker
+
+
+@dataclass(frozen=True)
+class FrozenCheckpoint:
+    snapshot: object
+    geometry: object
+    artifacts: object
 
 
 class ServiceBackend(Protocol):
@@ -49,6 +57,7 @@ class FibsemService:
         self.journal = journal
         self.exporter = exporter
         self.checkpoints: list[str] = []
+        self.frozen_checkpoints: dict[str, FrozenCheckpoint] = {}
         self._finalized = False
 
     def semantic_state(self) -> Mapping[str, object]:
@@ -65,7 +74,10 @@ class FibsemService:
             assert isinstance(step_id, str)
             summary = arguments.get("summary")
             assert summary is None or isinstance(summary, dict)
-            return self.checkpoint(step_id, summary)
+            try:
+                return self.checkpoint(step_id, summary)
+            except Exception as exc:
+                raise RuntimeError("trusted checkpoint export failed") from exc
         return self.backend.invoke(operation, arguments)
 
     def checkpoint(
@@ -89,6 +101,11 @@ class FibsemService:
             journal_hash=self.journal.head_hash,
         )
         self.checkpoints.append(step_id)
+        self.frozen_checkpoints[step_id] = FrozenCheckpoint(
+            snapshot=snapshot,
+            geometry=metrics,
+            artifacts=evidence,
+        )
         self.journal.append(
             "checkpoint.exported",
             step_id=step_id,

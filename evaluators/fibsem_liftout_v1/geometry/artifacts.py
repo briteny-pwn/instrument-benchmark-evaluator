@@ -218,13 +218,17 @@ def _validate_snapshot_meshes(root: Path, snapshot: SceneSnapshot) -> None:
         if bounds is None:
             raise ArtifactError(f"trusted snapshot is missing component: {relative}")
         actual = _binary_stl_bounds((root / relative).read_bytes(), relative)
-        if any(
-            abs(expected_value - actual_value) > 1e-5
-            for expected_value, actual_value in zip(
+        pairs = tuple(
+            zip(
                 (*bounds.minimum, *bounds.maximum),
                 (*actual.minimum, *actual.maximum),
                 strict=True,
             )
+        )
+        if any(
+            abs(expected_value - actual_value)
+            > max(1e-5, abs(expected_value) * 2e-7)
+            for expected_value, actual_value in pairs
         ):
             raise ArtifactError(f"artifact bounds disagree with trusted snapshot: {relative}")
 
