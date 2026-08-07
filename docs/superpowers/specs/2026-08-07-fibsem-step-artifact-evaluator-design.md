@@ -470,6 +470,18 @@ Each checkpoint bundle contributes 2.5 points:
 The image subscore is deterministic and uses public thresholds recorded in the
 report. It does not use a learned or network model.
 
+Each beam contributes 0.375 points, split as follows:
+
+| Image criterion per beam | Points | Full-credit rule |
+|---|---:|---|
+| PNG identity and dimensions | 0.125 | valid grayscale PNG at the exact scenario resolution |
+| Robust contrast | 0.125 | `p95 - p05 >= 32` grayscale levels; linear credit from 0 to 32 |
+| Useful-tone coverage | 0.125 | at least 10% of pixels are in `[5, 250]`; linear credit from 0% to 10% |
+
+A constant image receives zero for contrast and useful-tone coverage. The
+report records dimensions, p05, p95, robust contrast, and useful-tone fraction
+for SEM and FIB independently.
+
 Failure to request a checkpoint is a candidate outcome and earns no artifact
 points for that checkpoint. Failure of the trusted exporter after a valid
 checkpoint is infrastructure-invalid and retryable rather than a candidate
@@ -551,8 +563,8 @@ Existing report concepts remain and the schema adds a detailed breakdown:
     }
   },
   "reference": {
-    "scenario_digest": "...",
-    "bundle_digest": "...",
+    "scenario_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+    "bundle_digest": "2222222222222222222222222222222222222222222222222222222222222222",
     "algorithm_version": "stl-shape-v1"
   }
 }
