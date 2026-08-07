@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
+from types import MappingProxyType
 from typing import Mapping, Sequence
 
 from .backend import OPENFIBSEM_COMMIT
@@ -21,12 +23,25 @@ class CheckpointEvidence:
     geometry: GeometryMetrics
     artifact_complete: bool
     artifact_digest: str
+    artifact_root: Path | None = None
+    artifact_evidence: Mapping[str, object] | None = None
 
     def __post_init__(self) -> None:
         if self.step_id not in STEPS:
             raise ValueError("checkpoint evidence step is invalid")
         if self.artifact_complete and not _is_digest(self.artifact_digest):
             raise ValueError("checkpoint artifact digest is invalid")
+        if self.artifact_root is not None:
+            root = Path(self.artifact_root)
+            if not root.is_absolute():
+                raise ValueError("checkpoint artifact root must be absolute")
+            object.__setattr__(self, "artifact_root", root)
+        if self.artifact_evidence is not None:
+            object.__setattr__(
+                self,
+                "artifact_evidence",
+                MappingProxyType(dict(self.artifact_evidence)),
+            )
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -34,6 +49,11 @@ class CheckpointEvidence:
             "geometry": self.geometry.to_dict(),
             "artifact_complete": self.artifact_complete,
             "artifact_digest": self.artifact_digest,
+            "artifact_evidence": (
+                dict(self.artifact_evidence)
+                if self.artifact_evidence is not None
+                else None
+            ),
         }
 
 

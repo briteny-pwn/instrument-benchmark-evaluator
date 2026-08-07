@@ -171,6 +171,11 @@ def test_trusted_evidence_loader_validates_journal_geometry_and_artifacts(
     assert evidence.journal.head_hash == journal.head_hash
     assert tuple(evidence.checkpoints) == ("step_1",)
     assert evidence.checkpoints["step_1"].artifact_complete
+    assert evidence.checkpoints["step_1"].artifact_root == (
+        tmp_path / "artifacts" / "nominal" / "step_1"
+    ).resolve()
+    assert evidence.checkpoints["step_1"].artifact_evidence["world_id"] == "nominal"
+    assert "artifact_root" not in evidence.checkpoints["step_1"].to_dict()
     assert evidence.terminal.cleanup_error is None
 
 

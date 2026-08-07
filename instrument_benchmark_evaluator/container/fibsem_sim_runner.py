@@ -484,6 +484,8 @@ def load_fibsem_evidence(
             geometry,
             True,
             artifact.bundle_sha256,
+            artifact_root=(evidence_root / expected_path).resolve(),
+            artifact_evidence=artifact.to_dict(),
         )
     cleanup = summary["cleanup"]
     if not isinstance(cleanup, dict) or set(cleanup) != {

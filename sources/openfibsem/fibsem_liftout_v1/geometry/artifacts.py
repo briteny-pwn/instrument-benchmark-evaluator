@@ -32,6 +32,9 @@ class FileEvidence:
     bytes: int
     sha256: str
 
+    def to_dict(self) -> dict[str, object]:
+        return {"bytes": self.bytes, "sha256": self.sha256}
+
 
 @dataclass(frozen=True)
 class ArtifactEvidence:
@@ -42,6 +45,20 @@ class ArtifactEvidence:
     geometry_hash: str
     files: Mapping[str, FileEvidence]
     bundle_sha256: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "world_id": self.world_id,
+            "step_id": self.step_id,
+            "journal_sequence": self.journal_sequence,
+            "journal_hash": self.journal_hash,
+            "geometry_hash": self.geometry_hash,
+            "files": {
+                name: evidence.to_dict()
+                for name, evidence in sorted(self.files.items())
+            },
+            "bundle_sha256": self.bundle_sha256,
+        }
 
 
 def validate_checkpoint_bundle(
