@@ -18,6 +18,7 @@ REFERENCE_SCHEMA_VERSION = 1
 MESH_PARSER_VERSION = "canonical-stl-v1"
 SHAPE_ALGORITHM_VERSION = "stl-shape-v1"
 STEP_IDS = ("step_1", "step_2", "step_3", "step_4")
+REFERENCE_ARTIFACT_DIRECTORY = Path(__file__).with_name("reference_artifacts")
 REFERENCE_FILES = ("baseline/sample.stl",) + tuple(
     f"{step}/{name}"
     for step in STEP_IDS
@@ -33,6 +34,7 @@ __all__ = [
     "build_reference_bundle",
     "derive_roi_set",
     "load_reference_bundle",
+    "load_packaged_reference_bundles",
     "main",
 ]
 
@@ -92,6 +94,20 @@ class ReferenceBundle:
     scenario_document: Mapping[str, object]
     baseline_sample: CanonicalMesh
     steps: Mapping[str, ReferenceStep]
+
+
+def load_packaged_reference_bundles(
+    specs: Sequence[ScenarioSpec],
+) -> Mapping[str, ReferenceBundle]:
+    bundles: dict[str, ReferenceBundle] = {}
+    for spec in specs:
+        if spec.scenario_id in bundles:
+            raise ReferenceBundleError("duplicate packaged reference scenario")
+        bundles[spec.scenario_id] = load_reference_bundle(
+            REFERENCE_ARTIFACT_DIRECTORY / spec.scenario_id,
+            spec,
+        )
+    return MappingProxyType(dict(sorted(bundles.items())))
 
 
 def _canonical_json(value: object) -> bytes:

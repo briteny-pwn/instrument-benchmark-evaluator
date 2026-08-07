@@ -87,6 +87,23 @@ def test_seeded_worlds_are_deterministic_bounded_and_unique() -> None:
         assert world.is_solvable
 
 
+def test_seeded_world_numbers_are_quantized_for_cross_runtime_digests() -> None:
+    worlds = seeded_scenarios(5, base_seed=47000, nominal_path=NOMINAL)
+
+    def numbers(value: object):
+        if isinstance(value, dict):
+            for item in value.values():
+                yield from numbers(item)
+        elif isinstance(value, list):
+            for item in value:
+                yield from numbers(item)
+        elif isinstance(value, float):
+            yield value
+
+    for world in worlds:
+        assert all(value == round(value, 12) for value in numbers(world.to_dict()))
+
+
 def test_generator_rejects_invalid_counts_and_non_finite_scenarios() -> None:
     with pytest.raises(ValueError, match="count"):
         seeded_scenarios(0, base_seed=47000, nominal_path=NOMINAL)

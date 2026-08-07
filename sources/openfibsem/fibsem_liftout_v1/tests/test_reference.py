@@ -12,6 +12,10 @@ from sources.openfibsem.fibsem_liftout_v1.checkpoint_exporter import CheckpointE
 from sources.openfibsem.fibsem_liftout_v1.instrumented_microscope import OperationDispatcher
 from sources.openfibsem.fibsem_liftout_v1.journal import EventJournal
 from sources.openfibsem.fibsem_liftout_v1.scenario import load_fixed_scenarios, seeded_scenarios
+from sources.openfibsem.fibsem_liftout_v1.reference_bundles import (
+    REFERENCE_ARTIFACT_DIRECTORY,
+    load_reference_bundle,
+)
 from sources.openfibsem.fibsem_liftout_v1.scoring import (
     CheckpointEvidence,
     RuntimeEvidence,
@@ -60,7 +64,13 @@ def run_reference(spec, root: Path):
     from fibsem_iab import MicroscopeClient, Scenario
     from fibsem_iab.client import checkpoint_callback
 
-    runtime = RecordingRuntime()
+    class ReferenceRuntime(RecordingRuntime):
+        def acquire_image(self, beam: str) -> tuple[int, int, bytes]:
+            self.calls.append(("acquire_image", beam))
+            row = bytes(index % 256 for index in range(512))
+            return 512, 512, row * 512
+
+    runtime = ReferenceRuntime()
     backend = OpenFibsemBackend(spec, runtime=runtime)
     journal = EventJournal("reference-run", spec.scenario_id)
     service = FibsemService(backend, spec, journal, CheckpointExporter(root))
@@ -85,6 +95,8 @@ def run_reference(spec, root: Path):
             frozen.geometry,
             True,
             frozen.artifacts.bundle_sha256,
+            artifact_root=(root / "artifacts" / spec.scenario_id / step).resolve(),
+            artifact_evidence=frozen.artifacts.to_dict(),
         )
         for step, frozen in service.frozen_checkpoints.items()
     }
@@ -96,7 +108,18 @@ def run_reference(spec, root: Path):
         cleanup_error=summary["cleanup"]["error_type"],
     )
     runtime_evidence = RuntimeEvidence(0, False, False, False, 10001, 11001, True)
-    return result, grade_world(spec, journal, evidence, terminal, runtime_evidence)
+    reference = load_reference_bundle(
+        REFERENCE_ARTIFACT_DIRECTORY / spec.scenario_id,
+        spec,
+    )
+    return result, grade_world(
+        spec,
+        journal,
+        evidence,
+        terminal,
+        runtime_evidence,
+        reference=reference,
+    )
 
 
 def test_reference_uses_only_public_imports() -> None:
@@ -112,6 +135,8 @@ def test_reference_passes_public_nominal_world(tmp_path: Path) -> None:
     assert result["completed"] is True
     assert report.score == 100
     assert report.strict_pass, report.to_dict()
+    assert report.reference is not None
+    assert report.reference["algorithm_version"] == "stl-shape-v1"
 
 
 def test_reference_passes_all_fixed_and_seeded_worlds(tmp_path: Path) -> None:

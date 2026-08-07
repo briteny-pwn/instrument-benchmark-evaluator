@@ -46,7 +46,10 @@ def seeded_scenarios(
             rng = random.Random((seed << 8) + attempt)
             scale = rng.uniform(0.75, 1.25)
             scaled_length = nominal.characteristic_length_um * scale
-            needle = tuple(rng.uniform(-0.20, 0.20) * scaled_length for _ in range(3))
+            needle = tuple(
+                _stable_float(rng.uniform(-0.20, 0.20) * scaled_length)
+                for _ in range(3)
+            )
             translation = _bounded_vector(rng, 0.50 * scaled_length)
             rotation = _bounded_vector(rng, 8.0)
             candidate = ScenarioSpec.from_dict(
@@ -137,13 +140,16 @@ def canonical_document(value: dict[str, object]) -> bytes:
 def _scale_vector(value: object, scale: float) -> list[float]:
     if not isinstance(value, list) or len(value) != 3:
         raise ValueError("scenario vector is invalid")
-    return [float(item) * scale for item in value]
+    return [_stable_float(float(item) * scale) for item in value]
 
 
 def _add_vectors(value: object, delta: tuple[float, float, float]) -> list[float]:
     if not isinstance(value, list) or len(value) != 3:
         raise ValueError("scenario vector is invalid")
-    return [float(item) + change for item, change in zip(value, delta, strict=True)]
+    return [
+        _stable_float(float(item) + change)
+        for item, change in zip(value, delta, strict=True)
+    ]
 
 
 def _scale_box(value: object, scale: float) -> None:
@@ -159,4 +165,10 @@ def _bounded_vector(rng: random.Random, radius: float) -> tuple[float, float, fl
     if norm == 0:
         return (0.0, 0.0, 0.0)
     magnitude = rng.uniform(0.0, radius)
-    return tuple(value * magnitude / norm for value in raw)  # type: ignore[return-value]
+    return tuple(
+        _stable_float(value * magnitude / norm) for value in raw
+    )  # type: ignore[return-value]
+
+
+def _stable_float(value: float) -> float:
+    return round(value, 12)

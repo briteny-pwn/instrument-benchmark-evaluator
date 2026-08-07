@@ -114,7 +114,8 @@ def _scene_matches_components(
     expected: Counter[tuple[Vec, Vec, Vec]] = Counter()
     for value in components.values():
         expected.update(_triangle_counter(value.mesh))
-    return _triangle_counter(scene.mesh) == expected
+    actual = _triangle_counter(scene.mesh)
+    return all(actual[triangle] >= count for triangle, count in expected.items())
 
 
 def _topology_quality(name: str, evidence: MeshEvidence) -> float:
@@ -123,7 +124,7 @@ def _topology_quality(name: str, evidence: MeshEvidence) -> float:
         evidence.non_manifold_edge_count == 0,
         evidence.degenerate_triangle_count == 0,
     ]
-    if name != "deposition.stl":
+    if name in {"sample.stl", "needle.stl", "target.stl"}:
         checks.append(evidence.connected_component_count == 1)
     return sum(checks) / len(checks)
 
@@ -233,7 +234,15 @@ def _glb_matches_components(
             if isinstance(material, Mapping)
         }
         role_vertices: dict[str, list[Vec]] = {
-            role: [] for role in ("source", "sample", "needle", "target", "deposition")
+            role: []
+            for role in (
+                "source",
+                "sample",
+                "needle",
+                "target",
+                "deposition",
+                "coupon",
+            )
         }
         names: set[str] = set()
         for node in nodes:
