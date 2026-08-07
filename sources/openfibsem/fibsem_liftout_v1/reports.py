@@ -8,7 +8,7 @@ from .backend import OPENFIBSEM_COMMIT
 
 
 class ReportError(ValueError):
-    """A FIBSEM schema-version-4 report is incomplete or inconsistent."""
+    """A FIBSEM schema-version-5 report is incomplete or inconsistent."""
 
 
 def validate_report(value: object) -> dict[str, object]:
@@ -32,7 +32,7 @@ def validate_report(value: object) -> dict[str, object]:
     if set(report) != required:
         raise ReportError("report fields are invalid")
     if (
-        report["schema_version"] != 4
+        report["schema_version"] != 5
         or report["source_id"] != "openfibsem"
         or report["evaluator_id"] != "fibsem_liftout_v1"
     ):
@@ -89,6 +89,8 @@ def validate_report(value: object) -> dict[str, object]:
             "retry_eligible",
             "step_scores",
             "artifact_score",
+            "step_breakdowns",
+            "reference",
             "strict_gates",
             "checkpoints",
             "partial_order",
@@ -133,6 +135,17 @@ def validate_report(value: object) -> dict[str, object]:
             "step_4": 20,
         }.items():
             _score(step_scores[step], f"world {step}: {world_id}", maximum=maximum)
+        _step_breakdowns(
+            world.get("step_breakdowns"),
+            step_scores,
+            checkpoints_present=world.get("checkpoints"),
+            world_id=world_id,
+        )
+        _reference_identity(
+            world.get("reference"),
+            world_id,
+            nullable=bool(world.get("retry_eligible")),
+        )
         _score(world.get("artifact_score"), f"artifact score: {world_id}", maximum=10)
         checkpoints = world.get("checkpoints")
         checkpoint_order = ["step_1", "step_2", "step_3", "step_4"]
@@ -164,6 +177,13 @@ def validate_report(value: object) -> dict[str, object]:
             geometry_hash = checkpoint["geometry"].get("canonical_geometry_hash")
             if not _digest(geometry_hash):
                 raise ReportError(f"checkpoint geometry hash is invalid: {world_id}/{step}")
+            artifact_evidence = checkpoint.get("artifact_evidence")
+            if artifact_evidence is not None and not isinstance(
+                artifact_evidence, Mapping
+            ):
+                raise ReportError(
+                    f"checkpoint artifact evidence is invalid: {world_id}/{step}"
+                )
         partial_order = world.get("partial_order")
         if (
             not isinstance(partial_order, Mapping)
@@ -262,6 +282,159 @@ def validate_report(value: object) -> dict[str, object]:
     ):
         raise ReportError("strict pass contradicts suite gates")
     return report
+
+
+def _step_breakdowns(
+    value: object,
+    step_scores: Mapping[str, object],
+    *,
+    checkpoints_present: object,
+    world_id: str,
+) -> None:
+    totals = {"step_1": 20.0, "step_2": 25.0, "step_3": 25.0, "step_4": 20.0}
+    if not isinstance(value, Mapping) or set(value) != set(totals):
+        raise ReportError(f"world step breakdowns are invalid: {world_id}")
+    checkpoint_names = (
+        set(checkpoints_present) if isinstance(checkpoints_present, Mapping) else set()
+    )
+    for step, maximum in totals.items():
+        breakdown = value[step]
+        if not isinstance(breakdown, Mapping) or set(breakdown) != {
+            "step_id",
+            "raw_score",
+            "final_score",
+            "maximum_points",
+            "criteria",
+            "cap",
+        }:
+            raise ReportError(f"step breakdown fields are invalid: {world_id}/{step}")
+        if breakdown["step_id"] != step or breakdown["maximum_points"] != maximum:
+            raise ReportError(f"step breakdown identity is invalid: {world_id}/{step}")
+        _score(breakdown["raw_score"], "raw step score", maximum=maximum)
+        _score(breakdown["final_score"], "final step score", maximum=maximum)
+        if float(breakdown["final_score"]) != float(step_scores[step]):
+            raise ReportError(f"step score disagrees with breakdown: {world_id}/{step}")
+        criteria = breakdown["criteria"]
+        if not isinstance(criteria, Mapping):
+            raise ReportError(f"step criteria are invalid: {world_id}/{step}")
+        criterion_points = 0.0
+        criterion_maximum = 0.0
+        for criterion_id, criterion in criteria.items():
+            if (
+                not isinstance(criterion_id, str)
+                or not isinstance(criterion, Mapping)
+                or set(criterion)
+                != {"criterion_id", "points", "maximum_points", "metrics"}
+                or criterion["criterion_id"] != criterion_id
+            ):
+                raise ReportError(f"step criterion is invalid: {world_id}/{step}")
+            _score(criterion["maximum_points"], "criterion maximum", maximum=maximum)
+            _score(
+                criterion["points"],
+                "criterion points",
+                maximum=float(criterion["maximum_points"]),
+            )
+            if not isinstance(criterion["metrics"], Mapping):
+                raise ReportError(f"criterion metrics are invalid: {world_id}/{step}")
+            _six_decimal_values(criterion["metrics"], f"{world_id}/{step}/{criterion_id}")
+            criterion_points += float(criterion["points"])
+            criterion_maximum += float(criterion["maximum_points"])
+        if criteria and abs(criterion_maximum - maximum) > 1e-6:
+            raise ReportError(f"criterion maximum total is invalid: {world_id}/{step}")
+        if abs(round(criterion_points, 6) - float(breakdown["raw_score"])) > 1e-6:
+            raise ReportError(f"criterion score sum is invalid: {world_id}/{step}")
+        if not criteria and step in checkpoint_names:
+            raise ReportError(f"checkpoint step criteria are missing: {world_id}/{step}")
+        cap = breakdown["cap"]
+        if not isinstance(cap, Mapping) or set(cap) != {"maximum_points", "reasons"}:
+            raise ReportError(f"step score cap is invalid: {world_id}/{step}")
+        _score(cap["maximum_points"], "step cap", maximum=maximum)
+        reasons = cap["reasons"]
+        if (
+            not isinstance(reasons, list)
+            or any(not isinstance(reason, str) or not reason for reason in reasons)
+            or reasons != sorted(set(reasons))
+        ):
+            raise ReportError(f"step cap reasons are invalid: {world_id}/{step}")
+        expected_final = min(
+            float(breakdown["raw_score"]), float(cap["maximum_points"])
+        )
+        if abs(expected_final - float(breakdown["final_score"])) > 1e-6:
+            raise ReportError(f"step cap result is invalid: {world_id}/{step}")
+
+
+def _reference_identity(
+    value: object,
+    world_id: str,
+    *,
+    nullable: bool,
+) -> None:
+    if value is None and nullable:
+        return
+    fields = {
+        "schema_version",
+        "source_id",
+        "evaluator_id",
+        "scenario_id",
+        "scenario_sha256",
+        "openfibsem_commit",
+        "evaluator_commit",
+        "generator_tree_sha256",
+        "reference_solution_sha256",
+        "mesh_parser_version",
+        "algorithm_version",
+        "parameter_sha256",
+        "bundle_sha256",
+        "file_sha256",
+    }
+    if not isinstance(value, Mapping) or set(value) != fields:
+        raise ReportError(f"reference identity is invalid: {world_id}")
+    if (
+        value["schema_version"] != 1
+        or value["source_id"] != "openfibsem"
+        or value["evaluator_id"] != "fibsem_liftout_v1"
+        or value["scenario_id"] != world_id
+        or value["mesh_parser_version"] != "canonical-stl-v1"
+        or value["algorithm_version"] != "stl-shape-v1"
+        or value["openfibsem_commit"] != OPENFIBSEM_COMMIT
+        or not _commit(value["evaluator_commit"])
+    ):
+        raise ReportError(f"reference compatibility is invalid: {world_id}")
+    for name in (
+        "scenario_sha256",
+        "generator_tree_sha256",
+        "reference_solution_sha256",
+        "parameter_sha256",
+        "bundle_sha256",
+    ):
+        if not _digest(value[name]):
+            raise ReportError(f"reference digest is invalid: {world_id}/{name}")
+    files = value["file_sha256"]
+    if not isinstance(files, Mapping) or any(
+        not isinstance(name, str) or not _digest(digest)
+        for name, digest in files.items()
+    ):
+        raise ReportError(f"reference file index is invalid: {world_id}")
+
+
+def _six_decimal_values(value: object, name: str) -> None:
+    if isinstance(value, bool) or value is None or isinstance(value, str):
+        return
+    if isinstance(value, int):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value) or abs(value - round(value, 6)) > 1e-12:
+            raise ReportError(f"criterion metric precision is invalid: {name}")
+        return
+    if isinstance(value, Mapping):
+        for item in value.values():
+            _six_decimal_values(item, name)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _six_decimal_values(item, name)
+        return
+    raise ReportError(f"criterion metric type is invalid: {name}")
 
 
 def _container_evidence(value: object, role: str, world_id: str) -> None:
@@ -390,5 +563,13 @@ def _digest(value: object) -> bool:
     return (
         isinstance(value, str)
         and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def _commit(value: object) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 40
         and all(character in "0123456789abcdef" for character in value)
     )

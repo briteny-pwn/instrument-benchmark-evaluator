@@ -28,13 +28,13 @@ def complete_report() -> dict[str, object]:
     return aggregate_worlds(worlds).to_dict()
 
 
-def test_report_schema_version_4_round_trips_canonical_json() -> None:
+def test_report_schema_version_5_round_trips_breakdowns_and_reference() -> None:
     report = complete_report()
 
     validated = validate_report(report)
     payload = json.dumps(validated, sort_keys=True, separators=(",", ":"))
 
-    assert validated["schema_version"] == 4
+    assert validated["schema_version"] == 5
     assert validated["source_id"] == "openfibsem"
     assert validated["strict_pass"] is True
     assert len(validated["worlds"]) == 10
@@ -43,7 +43,24 @@ def test_report_schema_version_4_round_trips_canonical_json() -> None:
     ] == "10001:10001"
     assert validated["worlds"][0]["sim_container_evidence"]["user"] == "11001:11001"
     assert validated["worlds"][0]["trusted_evidence"]["journal_head_hash"]
+    assert validated["worlds"][0]["step_breakdowns"]["step_1"]["criteria"][
+        "sample_global"
+    ]["metrics"]["voxel_iou"] == 1.0
+    assert validated["worlds"][0]["reference"]["algorithm_version"] == (
+        "stl-shape-v1"
+    )
     assert json.loads(payload) == validated
+
+
+def test_report_rejects_unsorted_cap_reasons() -> None:
+    report = complete_report()
+    report["worlds"][0]["step_breakdowns"]["step_1"]["cap"]["reasons"] = [  # type: ignore[index]
+        "z_reason",
+        "a_reason",
+    ]
+
+    with pytest.raises(ReportError, match="cap reasons"):
+        validate_report(report)
 
 
 def test_report_rejects_missing_checkpoint_evidence_and_wrong_world_suite() -> None:

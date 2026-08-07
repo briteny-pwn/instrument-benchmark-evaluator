@@ -58,6 +58,24 @@ class ReferenceIdentity:
     bundle_sha256: str
     file_sha256: Mapping[str, str]
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "source_id": self.source_id,
+            "evaluator_id": self.evaluator_id,
+            "scenario_id": self.scenario_id,
+            "scenario_sha256": self.scenario_sha256,
+            "openfibsem_commit": self.openfibsem_commit,
+            "evaluator_commit": self.evaluator_commit,
+            "generator_tree_sha256": self.generator_tree_sha256,
+            "reference_solution_sha256": self.reference_solution_sha256,
+            "mesh_parser_version": self.mesh_parser_version,
+            "algorithm_version": self.algorithm_version,
+            "parameter_sha256": self.parameter_sha256,
+            "bundle_sha256": self.bundle_sha256,
+            "file_sha256": dict(sorted(self.file_sha256.items())),
+        }
+
 
 @dataclass(frozen=True)
 class ReferenceStep:

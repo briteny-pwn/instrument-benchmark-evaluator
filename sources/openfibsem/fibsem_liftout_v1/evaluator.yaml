@@ -3,7 +3,7 @@ source_id: openfibsem
 evaluator_id: fibsem_liftout_v1
 task_type: fibsem_liftout
 protocol_version: 2
-report_schema_version: 4
+report_schema_version: 5
 container_protocol_version: 1
 candidate_execution: docker
 image_mode: locked

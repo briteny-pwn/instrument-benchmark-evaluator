@@ -116,6 +116,40 @@ def _shape_fraction(evidence: StepEvidence, name: str) -> float:
     return 0.0 if value is None else _clamp01(value.shape_score)
 
 
+def _shape_criterion(
+    criterion_id: str,
+    evidence: StepEvidence,
+    shape_name: str,
+    maximum: float,
+) -> CriterionScore:
+    value = evidence.shapes.get(shape_name)
+    if value is None:
+        return _criterion(
+            criterion_id,
+            0.0,
+            maximum,
+            missing_shape_evidence=True,
+        )
+    return _criterion(
+        criterion_id,
+        value.shape_score,
+        maximum,
+        candidate_volume_um3=value.candidate_volume_um3,
+        reference_volume_um3=value.reference_volume_um3,
+        volume_similarity=value.volume_similarity,
+        voxel_iou=value.voxel_iou,
+        symmetric_surface_distance_um=value.symmetric_surface_distance_um,
+        hausdorff_distance_um=value.hausdorff_distance_um,
+        asd_score=value.asd_score,
+        hausdorff_score=value.hausdorff_score,
+        shape_score=value.shape_score,
+        voxel_size_um=value.voxel_size_um,
+        surface_sample_count=value.surface_sample_count,
+        candidate_geometry_sha256=value.candidate_geometry_sha256,
+        reference_geometry_sha256=value.reference_geometry_sha256,
+    )
+
+
 def _threshold_fraction(value: float, minimum: float, full: float) -> float:
     if value <= minimum:
         return 0.0
@@ -152,16 +186,10 @@ def _step_1(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
         + _threshold_fraction(metrics.retained_sample_fraction, 0.65, 0.75)
     ) / 2.0
     return {
-        "sample_global": _criterion(
-            "sample_global", _shape_fraction(evidence, "sample"), 6.0
-        ),
-        "cut_morphology": _criterion(
-            "cut_morphology", _shape_fraction(evidence, "cut"), 4.0
-        ),
-        "protection_morphology": _criterion(
-            "protection_morphology",
-            _shape_fraction(evidence, "protection"),
-            3.0,
+        "sample_global": _shape_criterion("sample_global", evidence, "sample", 6.0),
+        "cut_morphology": _shape_criterion("cut_morphology", evidence, "cut", 4.0),
+        "protection_morphology": _shape_criterion(
+            "protection_morphology", evidence, "protection", 3.0
         ),
         "source_bridge": _criterion(
             "source_bridge",
@@ -196,16 +224,14 @@ def _step_2(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
     )
     connectivity_points = 3.0 * state_fraction + 2.0 * joint_fraction
     return {
-        "sample_preservation": _criterion(
-            "sample_preservation", _shape_fraction(evidence, "sample"), 5.0
+        "sample_preservation": _shape_criterion(
+            "sample_preservation", evidence, "sample", 5.0
         ),
-        "source_separation": _criterion(
-            "source_separation",
-            _shape_fraction(evidence, "source_separation"),
-            5.0,
+        "source_separation": _shape_criterion(
+            "source_separation", evidence, "source_separation", 5.0
         ),
-        "needle_joint": _criterion(
-            "needle_joint", _shape_fraction(evidence, "needle_joint"), 5.0
+        "needle_joint": _shape_criterion(
+            "needle_joint", evidence, "needle_joint", 5.0
         ),
         "transfer_connectivity": _criterion(
             "transfer_connectivity",
@@ -250,8 +276,8 @@ def _step_3(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
     )
     connectivity_points = 3.0 * state_fraction + needle_fraction + target_fraction
     return {
-        "sample_preservation": _criterion(
-            "sample_preservation", _shape_fraction(evidence, "sample"), 4.0
+        "sample_preservation": _shape_criterion(
+            "sample_preservation", evidence, "sample", 4.0
         ),
         "target_pose": _criterion(
             "target_pose",
@@ -262,8 +288,8 @@ def _step_3(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
                 metrics.sample_orientation_error_degrees
             ),
         ),
-        "target_joint": _criterion(
-            "target_joint", _shape_fraction(evidence, "target_joint"), 5.0
+        "target_joint": _shape_criterion(
+            "target_joint", evidence, "target_joint", 5.0
         ),
         "dual_connectivity": _criterion(
             "dual_connectivity",
@@ -274,10 +300,8 @@ def _step_3(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
             needle_joint_section_um=_rounded(metrics.needle_joint_section_um),
             target_joint_section_um=_rounded(metrics.target_joint_section_um),
         ),
-        "target_interface": _criterion(
-            "target_interface",
-            _shape_fraction(evidence, "target_interface"),
-            4.0,
+        "target_interface": _shape_criterion(
+            "target_interface", evidence, "target_interface", 4.0
         ),
         "common_state": _criterion(
             "common_state", _common_fraction(metrics), 2.0
@@ -307,18 +331,14 @@ def _step_4(evidence: StepEvidence, spec: ScenarioSpec) -> dict[str, CriterionSc
         + (0.5 if metrics.simulator_idle else 0.0)
     )
     return {
-        "sample_preservation": _criterion(
-            "sample_preservation", _shape_fraction(evidence, "sample"), 4.0
+        "sample_preservation": _shape_criterion(
+            "sample_preservation", evidence, "sample", 4.0
         ),
-        "needle_separation": _criterion(
-            "needle_separation",
-            _shape_fraction(evidence, "needle_separation"),
-            4.0,
+        "needle_separation": _shape_criterion(
+            "needle_separation", evidence, "needle_separation", 4.0
         ),
-        "target_joint_preservation": _criterion(
-            "target_joint_preservation",
-            _shape_fraction(evidence, "target_joint"),
-            4.0,
+        "target_joint_preservation": _shape_criterion(
+            "target_joint_preservation", evidence, "target_joint", 4.0
         ),
         "final_topology": _criterion(
             "final_topology",

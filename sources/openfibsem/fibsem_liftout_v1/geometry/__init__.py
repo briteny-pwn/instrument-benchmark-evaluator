@@ -1,7 +1,7 @@
 from .artifacts import ArtifactError, ArtifactEvidence, validate_checkpoint_bundle
 from .metrics import MeshPart, SceneSnapshot, TriangleMesh, box_mesh
 from .oracle import GeometryMetrics, GeometryOracle
-from .roi import Roi, RoiSet, derive_roi_set
+from .roi import Roi, RoiSet, derive_roi_set, scenario_box_bounds
 from .similarity import (
     ShapeComparison,
     ShapeMetricError,
@@ -43,6 +43,7 @@ __all__ = [
     "derive_roi_set",
     "parse_stl",
     "parse_stl_path",
+    "scenario_box_bounds",
     "surface_distances",
     "validate_checkpoint_bundle",
     "voxel_iou",

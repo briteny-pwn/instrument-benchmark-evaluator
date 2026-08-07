@@ -246,7 +246,8 @@ def test_partial_order_rejects_source_cut_before_needle_joint() -> None:
     )
 
     assert not report.strict_gates["necessary_partial_order"]
-    assert report.step_scores["step_2"] == 0
+    assert report.step_scores["step_2"] == 25
+    assert not report.strict_pass
 
 
 def world_report(world_id: str, *, passed: bool = True, unsafe: bool = False):

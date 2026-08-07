@@ -69,6 +69,12 @@ def _scenario_box(spec: ScenarioSpec, section: str, name: str) -> Bounds:
     return _box_bounds(spec, parent[name], f"{section}.{name}")
 
 
+def scenario_box_bounds(spec: ScenarioSpec, section: str, name: str) -> Bounds:
+    """Resolve one named scenario box into the world coordinate frame."""
+
+    return _scenario_box(spec, section, name)
+
+
 def _expanded(bounds: Bounds, padding: float) -> Bounds:
     return Bounds(
         tuple(value - padding for value in bounds.minimum),

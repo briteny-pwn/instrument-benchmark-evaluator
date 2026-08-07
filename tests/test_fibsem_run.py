@@ -14,6 +14,7 @@ from instrument_benchmark_evaluator.fibsem_run import (
     _make_host_cleanup_directories,
     fibsem_suite_specs,
     run_fibsem_full_suite,
+    run_fibsem_world,
 )
 from instrument_benchmark_evaluator.cli import main
 from sources.openfibsem.fibsem_liftout_v1.tests.test_scoring import world_report
@@ -142,7 +143,7 @@ def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> Non
     class Report:
         def to_dict(self):
             return {
-                "schema_version": 4,
+                "schema_version": 5,
                 "source_id": "openfibsem",
                 "evaluator_id": "fibsem_liftout_v1",
             }
@@ -165,7 +166,7 @@ def test_cli_dispatches_fibsem_with_exact_evaluator_image(tmp_path: Path) -> Non
     assert run.call_args.kwargs["sim_runner"] is sim_runner
     written = json.loads(report_path.read_text())
     assert written == {
-        "schema_version": 4,
+        "schema_version": 5,
         "source_id": "openfibsem",
         "evaluator_id": "fibsem_liftout_v1",
     }
@@ -218,6 +219,47 @@ def test_full_suite_executes_each_world_once_in_declared_order(tmp_path: Path) -
         "seeded_05",
     ]
     assert report.strict_pass
+
+
+def test_reference_bundle_failure_is_retryable_before_candidate_run(
+    tmp_path: Path,
+) -> None:
+    shared = tmp_path / "shared"
+    shared.mkdir()
+    broken_reference = tmp_path / "broken-reference"
+    broken_reference.mkdir()
+    benchmark = RunSettings(
+        instance_path=INSTANCE,
+        fixed_worlds=("nominal", "small", "large", "needle_offset", "target_pose"),
+        repeated_worlds=5,
+        timeout_seconds=180,
+        max_output_bytes=1048576,
+        shared_run_root=shared,
+    )
+
+    class NeverStarted:
+        def start(self, **_kwargs):
+            raise AssertionError("simulator must not start with invalid reference")
+
+    execution = run_fibsem_world(
+        benchmark=benchmark,
+        instance=load_instance_settings(
+            INSTANCE,
+            expected_source_id="openfibsem",
+            expected_instance_id="fibsem_liftout_v1",
+            expected_evaluator_id="fibsem_liftout_v1",
+        ),
+        spec=fibsem_suite_specs(INSTANCE, repeated_base_seed=47000)[0],
+        candidate_path=ROOT
+        / "sources/openfibsem/fibsem_liftout_v1/reference/solution.py",
+        backend=object(),
+        sim_runner=NeverStarted(),
+        reference_root=broken_reference,
+    )
+
+    assert execution.report.score is None
+    assert execution.report.retry_eligible
+    assert execution.process is None
 
 
 def test_serve_fibsem_sim_dispatches_absolute_isolated_paths(tmp_path: Path) -> None:

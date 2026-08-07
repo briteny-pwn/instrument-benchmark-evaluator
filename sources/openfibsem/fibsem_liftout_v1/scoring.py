@@ -1,15 +1,27 @@
 from __future__ import annotations
 
+import hashlib
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping, Sequence
 
+from .artifact_scoring import CheckpointArtifactScore, score_checkpoint_artifacts
 from .backend import OPENFIBSEM_COMMIT
+from .geometry.roi import derive_roi_set, scenario_box_bounds
+from .geometry.similarity import ShapeComparison, compare_shapes
+from .geometry.stl_mesh import parse_stl_path
 from .geometry.oracle import GeometryMetrics
 from .journal import EventJournal, JournalError, validate_records
 from .models import ScenarioSpec
+from .reference_bundles import ReferenceBundle
+from .step_rubric import (
+    ScoreCap,
+    StepBreakdown,
+    StepEvidence,
+    score_step,
+)
 
 
 STEP_POINTS = {"step_1": 20, "step_2": 25, "step_3": 25, "step_4": 20}
@@ -119,8 +131,10 @@ class FibsemWorldReport:
     score: float | None
     strict_pass: bool
     retry_eligible: bool
-    step_scores: Mapping[str, int]
+    step_scores: Mapping[str, float]
     artifact_score: float
+    step_breakdowns: Mapping[str, StepBreakdown]
+    reference: Mapping[str, object] | None
     strict_gates: Mapping[str, bool]
     checkpoints: Mapping[str, CheckpointEvidence]
     partial_order: Mapping[str, int | None]
@@ -140,6 +154,13 @@ class FibsemWorldReport:
             "retry_eligible": self.retry_eligible,
             "step_scores": dict(self.step_scores),
             "artifact_score": self.artifact_score,
+            "step_breakdowns": {
+                name: breakdown.to_dict()
+                for name, breakdown in sorted(self.step_breakdowns.items())
+            },
+            "reference": (
+                dict(self.reference) if self.reference is not None else None
+            ),
             "strict_gates": dict(self.strict_gates),
             "checkpoints": {
                 name: checkpoint.to_dict()
@@ -179,7 +200,7 @@ class FibsemEvaluationReport:
 
     def to_dict(self) -> dict[str, object]:
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "source_id": "openfibsem",
             "evaluator_id": "fibsem_liftout_v1",
             "openfibsem_commit": OPENFIBSEM_COMMIT,
@@ -200,6 +221,10 @@ def grade_world(
     checkpoints: Mapping[str, CheckpointEvidence],
     terminal: TerminalEvidence,
     runtime: RuntimeEvidence,
+    *,
+    reference: ReferenceBundle | None = None,
+    step_evidence: Mapping[str, StepEvidence] | None = None,
+    artifact_scores: Mapping[str, CheckpointArtifactScore] | None = None,
 ) -> FibsemWorldReport:
     records = [event.to_dict() for event in journal.events]
     try:
@@ -211,26 +236,62 @@ def grade_world(
     checkpoint_keys_valid = set(checkpoints) <= set(STEPS) and all(
         key == value.step_id for key, value in checkpoints.items()
     )
-    step_scores: dict[str, int] = {}
+    resolved_steps: Mapping[str, StepEvidence]
+    resolved_artifacts: Mapping[str, CheckpointArtifactScore]
+    if reference is not None:
+        resolved_steps, resolved_artifacts = _reference_evidence(
+            spec, checkpoints, reference
+        )
+    elif step_evidence is not None:
+        resolved_steps = step_evidence
+        resolved_artifacts = artifact_scores or {}
+    elif runtime.infrastructure_failure:
+        resolved_steps = {}
+        resolved_artifacts = {}
+    else:
+        resolved_steps = {
+            step: _synthetic_step_evidence(step, checkpoint.geometry, spec)
+            for step, checkpoint in checkpoints.items()
+        }
+        resolved_artifacts = {}
+
+    step_scores: dict[str, float] = {}
+    step_breakdowns: dict[str, StepBreakdown] = {}
     earlier_present = True
     for step in STEPS:
-        evidence = checkpoints.get(step)
-        earlier_present = earlier_present and evidence is not None
-        valid = (
-            earlier_present
-            and evidence is not None
-            and order_by_step[step]
-            and _step_geometry_valid(step, evidence.geometry, spec)
-        )
-        step_scores[step] = STEP_POINTS[step] if valid else 0
+        checkpoint = checkpoints.get(step)
+        evidence = resolved_steps.get(step)
+        present = checkpoint is not None and evidence is not None
+        earlier_present = earlier_present and present
+        if evidence is None:
+            breakdown = _zero_breakdown(step, "missing_or_untrusted_checkpoint")
+        else:
+            breakdown = score_step(step, evidence, spec)
+            if not earlier_present:
+                breakdown = _externally_capped(
+                    breakdown, "missing_predecessor_checkpoint"
+                )
+        step_breakdowns[step] = breakdown
+        step_scores[step] = breakdown.final_score
+
     artifact_count = sum(
-        1
-        for step in STEPS
-        if step in checkpoints
+        step in checkpoints
         and checkpoints[step].artifact_complete
         and _is_digest(checkpoints[step].artifact_digest)
+        for step in STEPS
     )
-    artifact_score = artifact_count * 2.5
+    artifact_score = (
+        round(sum(value.points for value in resolved_artifacts.values()), 6)
+        if resolved_artifacts
+        else artifact_count * 2.5
+    )
+    reference_record = (
+        reference.identity.to_dict()
+        if reference is not None
+        else None
+        if runtime.infrastructure_failure
+        else _synthetic_reference_identity(spec)
+    )
     forbidden_access = runtime.forbidden_access or forbidden_journal
     gates = {
         "preflight_complete": preflight,
@@ -240,6 +301,7 @@ def grade_world(
             step_scores[step] == STEP_POINTS[step] for step in STEPS
         ),
         "trusted_artifacts_complete": artifact_count == 4 and checkpoint_keys_valid,
+        "reference_bundle_valid": reference_record is not None,
         "safe_terminal_state": terminal.is_safe,
         "no_forbidden_access": not forbidden_access,
         "runtime_completed": runtime.candidate_completed,
@@ -262,6 +324,8 @@ def grade_world(
         retry_eligible=retry_eligible,
         step_scores=step_scores,
         artifact_score=artifact_score,
+        step_breakdowns=step_breakdowns,
+        reference=reference_record,
         strict_gates=gates,
         checkpoints=dict(checkpoints),
         partial_order=markers,
@@ -269,6 +333,223 @@ def grade_world(
         runtime=runtime,
         evidence_confidence=confidence,
     )
+
+
+def _perfect_shape(geometry_hash: str) -> ShapeComparison:
+    return ShapeComparison(
+        candidate_volume_um3=1.0,
+        reference_volume_um3=1.0,
+        volume_similarity=1.0,
+        voxel_iou=1.0,
+        symmetric_surface_distance_um=0.0,
+        hausdorff_distance_um=0.0,
+        asd_score=1.0,
+        hausdorff_score=1.0,
+        shape_score=1.0,
+        voxel_size_um=0.1,
+        surface_sample_count=2_048,
+        candidate_geometry_sha256=geometry_hash,
+        reference_geometry_sha256=geometry_hash,
+    )
+
+
+def _synthetic_step_evidence(
+    step: str, metrics: GeometryMetrics, spec: ScenarioSpec
+) -> StepEvidence:
+    names = {
+        "step_1": ("sample", "cut", "protection", "source_bridge"),
+        "step_2": ("sample", "source_separation", "needle_joint"),
+        "step_3": ("sample", "target_joint", "target_interface"),
+        "step_4": ("sample", "needle_separation", "target_joint"),
+    }[step]
+    shape = _perfect_shape(metrics.canonical_geometry_hash)
+    shapes = {name: shape for name in names}
+    if step in {"step_2", "step_3"}:
+        needle_score = min(
+            1.0,
+            max(
+                0.0,
+                metrics.needle_joint_section_um
+                / spec.tolerances.joint_scale_um,
+            ),
+        )
+        if "needle_joint" in shapes:
+            shapes["needle_joint"] = _shape_with_score(shape, needle_score)
+    if step in {"step_3", "step_4"}:
+        target_score = min(
+            1.0,
+            max(
+                0.0,
+                metrics.target_joint_section_um
+                / spec.tolerances.joint_scale_um,
+            ),
+        )
+        if "target_joint" in shapes:
+            shapes["target_joint"] = _shape_with_score(shape, target_score)
+    return StepEvidence(
+        step,
+        metrics,
+        shapes,
+        co_motion_score=1.0,
+        trusted=True,
+    )
+
+
+def _shape_with_score(
+    value: ShapeComparison, score: float
+) -> ShapeComparison:
+    return replace(
+        value,
+        volume_similarity=score,
+        voxel_iou=score,
+        asd_score=score,
+        hausdorff_score=score,
+        shape_score=score,
+    )
+
+
+def _synthetic_reference_identity(spec: ScenarioSpec) -> dict[str, object]:
+    zero_digest = "0" * 64
+    return {
+        "schema_version": 1,
+        "source_id": "openfibsem",
+        "evaluator_id": "fibsem_liftout_v1",
+        "scenario_id": spec.scenario_id,
+        "scenario_sha256": hashlib.sha256(spec.canonical_bytes()).hexdigest(),
+        "openfibsem_commit": OPENFIBSEM_COMMIT,
+        "evaluator_commit": "0" * 40,
+        "generator_tree_sha256": zero_digest,
+        "reference_solution_sha256": zero_digest,
+        "mesh_parser_version": "canonical-stl-v1",
+        "algorithm_version": "stl-shape-v1",
+        "parameter_sha256": zero_digest,
+        "bundle_sha256": zero_digest,
+        "file_sha256": {},
+    }
+
+
+def _zero_breakdown(step: str, reason: str) -> StepBreakdown:
+    return StepBreakdown(
+        step_id=step,
+        raw_score=0.0,
+        final_score=0.0,
+        maximum_points=float(STEP_POINTS[step]),
+        criteria=MappingProxyType({}),
+        cap=ScoreCap(0.0, (reason,)),
+    )
+
+
+def _externally_capped(breakdown: StepBreakdown, reason: str) -> StepBreakdown:
+    reasons = tuple(sorted({*breakdown.cap.reasons, reason}))
+    return StepBreakdown(
+        step_id=breakdown.step_id,
+        raw_score=breakdown.raw_score,
+        final_score=0.0,
+        maximum_points=breakdown.maximum_points,
+        criteria=breakdown.criteria,
+        cap=ScoreCap(0.0, reasons),
+    )
+
+
+def _image_resolution(spec: ScenarioSpec) -> tuple[int, int]:
+    imaging = spec.data.get("imaging")
+    if not isinstance(imaging, Mapping):
+        raise ValueError("scenario imaging contract is invalid")
+    resolution = imaging.get("resolution")
+    if (
+        not isinstance(resolution, tuple)
+        or len(resolution) != 2
+        or any(isinstance(value, bool) or not isinstance(value, int) for value in resolution)
+    ):
+        raise ValueError("scenario imaging resolution is invalid")
+    return resolution
+
+
+def _reference_evidence(
+    spec: ScenarioSpec,
+    checkpoints: Mapping[str, CheckpointEvidence],
+    reference: ReferenceBundle,
+) -> tuple[dict[str, StepEvidence], dict[str, CheckpointArtifactScore]]:
+    rois = derive_roi_set(reference, spec)
+    step_rois = {
+        "step_1": {
+            "cut": rois.step_1_cut.bounds,
+            "protection": rois.protected_region.bounds,
+            "source_bridge": rois.source_bridge.bounds,
+        },
+        "step_2": {
+            "source_separation": rois.step_2_source_separation.bounds,
+            "needle_joint": rois.step_2_needle_deposition.bounds,
+        },
+        "step_3": {
+            "target_joint": rois.step_3_target_deposition.bounds,
+            "target_interface": rois.target_joint.bounds,
+        },
+        "step_4": {
+            "needle_separation": rois.step_4_needle_separation.bounds,
+            "target_joint": rois.target_joint.bounds,
+        },
+    }
+    deposition_shapes = {
+        "protection",
+        "needle_joint",
+        "target_joint",
+    }
+    steps: dict[str, StepEvidence] = {}
+    artifacts: dict[str, CheckpointArtifactScore] = {}
+    for step, checkpoint in checkpoints.items():
+        if checkpoint.artifact_root is None:
+            raise ValueError(f"trusted checkpoint artifact root is missing: {step}")
+        artifact = score_checkpoint_artifacts(
+            checkpoint.artifact_root,
+            spec.scenario_id,
+            step,
+            expected_resolution=_image_resolution(spec),
+        )
+        artifacts[step] = artifact
+        candidate_sample = parse_stl_path(
+            checkpoint.artifact_root / "components" / "sample.stl"
+        )
+        candidate_deposition = parse_stl_path(
+            checkpoint.artifact_root / "components" / "deposition.stl"
+        )
+        reference_step = reference.steps[step]
+        envelope = scenario_box_bounds(spec, "work_envelopes", step)
+        shapes: dict[str, ShapeComparison] = {
+            "sample": compare_shapes(
+                candidate_sample,
+                reference_step.sample,
+                envelope,
+                tau_um=spec.tolerances.position_um,
+                characteristic_length_um=spec.characteristic_length_um,
+            )
+        }
+        for name, bounds in step_rois[step].items():
+            uses_deposition = name in deposition_shapes
+            shapes[name] = compare_shapes(
+                candidate_deposition if uses_deposition else candidate_sample,
+                reference_step.deposition if uses_deposition else reference_step.sample,
+                bounds,
+                tau_um=(
+                    spec.tolerances.joint_scale_um
+                    if uses_deposition
+                    else spec.tolerances.position_um
+                ),
+                characteristic_length_um=spec.characteristic_length_um,
+            )
+        co_motion = float(
+            checkpoint.geometry.sample_to_needle
+            and not checkpoint.geometry.sample_to_source
+            and not checkpoint.geometry.sample_to_target
+        )
+        steps[step] = StepEvidence(
+            step_id=step,
+            geometry=checkpoint.geometry,
+            shapes=shapes,
+            co_motion_score=co_motion if step == "step_2" else 1.0,
+            trusted=checkpoint.artifact_complete,
+        )
+    return steps, artifacts
 
 
 def aggregate_worlds(

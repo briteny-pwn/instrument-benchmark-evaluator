@@ -145,6 +145,8 @@ def voxel_iou(
     """Return deterministic occupancy IoU on a reference-fixed ROI grid."""
 
     shape = _grid_shape(roi, voxel_size_um, maximum_cells)
+    if candidate.vertices == reference.vertices and candidate.faces == reference.faces:
+        return 1.0
     candidate_cells = _voxelize(candidate, roi, voxel_size_um, shape)
     reference_cells = _voxelize(reference, roi, voxel_size_um, shape)
     union = candidate_cells | reference_cells

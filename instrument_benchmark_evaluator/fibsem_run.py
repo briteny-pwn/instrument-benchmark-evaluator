@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Mapping
 
 from sources.openfibsem.fibsem_liftout_v1.models import ScenarioSpec
+from sources.openfibsem.fibsem_liftout_v1.reference_bundles import (
+    ReferenceBundleError,
+    load_reference_bundle,
+)
 from sources.openfibsem.fibsem_liftout_v1.scenario import (
     load_fixed_scenarios,
     seeded_scenarios,
@@ -31,6 +35,13 @@ from .isolation import IsolationError, prepare_workspace
 
 
 FIXED_ORDER = ("nominal", "small", "large", "needle_offset", "target_pose")
+REFERENCE_ARTIFACTS = (
+    Path(__file__).resolve().parents[1]
+    / "sources"
+    / "openfibsem"
+    / "fibsem_liftout_v1"
+    / "reference_artifacts"
+)
 
 
 @dataclass(frozen=True)
@@ -64,6 +75,7 @@ def run_fibsem_world(
     candidate_path: Path,
     backend: CandidateBackend,
     sim_runner: FibsemSimContainerRunner,
+    reference_root: Path | None = None,
 ) -> FibsemWorldExecution:
     process: CandidateProcessResult | None = None
     sim_result: FibsemSimContainerResult | None = None
@@ -78,6 +90,20 @@ def run_fibsem_world(
     for path in (transport, evidence, workspace, output):
         path.mkdir(mode=0o755)
         path.chmod(0o777)
+    reference_base = (
+        REFERENCE_ARTIFACTS if reference_root is None else Path(reference_root).resolve()
+    )
+    reference_path = (
+        reference_base
+        if (reference_base / "reference-manifest.json").is_file()
+        else reference_base / spec.scenario_id
+    )
+    try:
+        reference = load_reference_bundle(reference_path, spec)
+    except (OSError, ValueError, ReferenceBundleError) as exc:
+        return _host_cleanup_ready(
+            root, _infrastructure_failure(spec, evidence, exc)
+        )
     static_forbidden = False
     try:
         prepare_workspace(
@@ -148,13 +174,20 @@ def run_fibsem_world(
         forbidden=static_forbidden,
         expected_world=spec.scenario_id,
     )
-    report = grade_world(
-        spec,
-        trusted.journal,
-        trusted.checkpoints,
-        trusted.terminal,
-        runtime,
-    )
+    try:
+        report = grade_world(
+            spec,
+            trusted.journal,
+            trusted.checkpoints,
+            trusted.terminal,
+            runtime,
+            reference=reference,
+        )
+    except Exception as exc:
+        return _host_cleanup_ready(
+            root,
+            _infrastructure_failure(spec, evidence, exc, process),
+        )
     candidate_container = (
         process.container_evidence.to_dict()
         if isinstance(process, ContainerProcessResult)
