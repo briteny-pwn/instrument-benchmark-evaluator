@@ -11,7 +11,7 @@ from pyvisa.constants import StatusCode
 
 
 MAX_QUERY_BYTES = 256
-QUERY_TIMEOUT_SECONDS = 0.25
+QUERY_TIMEOUT_SECONDS = 0.75
 
 
 @dataclass(frozen=True)
