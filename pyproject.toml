@@ -29,7 +29,12 @@ include = ["instrument_benchmark_evaluator*", "sources*"]
   "worlds/*.yaml",
 ]
 "sources.pyvisa.pyvisa_dut_validation_v2" = ["evaluator.yaml", "simulator.yaml"]
-"sources.openfibsem.fibsem_liftout_v1" = ["evaluator.yaml", "scenarios/*.json"]
+"sources.openfibsem.fibsem_liftout_v1" = [
+  "evaluator.yaml",
+  "scenarios/*.json",
+  "reference_artifacts/**/*.json",
+  "reference_artifacts/**/*.stl",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "sources"]
