@@ -42,3 +42,12 @@ def test_evaluator_ci_runs_owned_assets_and_acceptance_tests_with_instrument() -
     assert "python -m pip install -e . -e instrument pytest" in workflow
     assert "python -m pytest tests sources -q" in " ".join(workflow.split())
     assert "evaluators/pyvisa_dut_validation" not in workflow
+
+
+def test_evaluator_integrations_never_load_assets_from_instrument() -> None:
+    offenders = []
+    for path in sorted((ROOT / "tests/integration").glob("test_*.py")):
+        if 'INSTRUMENT / "container"' in path.read_text(encoding="utf-8"):
+            offenders.append(path.name)
+
+    assert offenders == []
