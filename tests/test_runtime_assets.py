@@ -43,6 +43,7 @@ def test_evaluator_ci_runs_owned_assets_and_acceptance_tests_with_instrument() -
     assert "repository: briteny-pwn/instrument-benchmark-instances" in workflow
     assert "path: instance" in workflow
     assert "path: instrument" in workflow
+    assert workflow.count("ref: distributed-model") == 2
     assert "python -m pip install -e . -e ../instrument pytest" in workflow
     assert "python -m pytest tests sources -q" in " ".join(workflow.split())
     assert (

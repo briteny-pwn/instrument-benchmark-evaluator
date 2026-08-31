@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: briteny-pwn/instrument-benchmark
+          ref: distributed-model
           path: instrument
       - uses: actions/setup-python@v5
         with:
@@ -42,6 +43,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: briteny-pwn/instrument-benchmark
+          ref: distributed-model
           path: instrument
       - uses: actions/setup-python@v5
         with:
