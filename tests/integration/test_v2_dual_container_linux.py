@@ -56,7 +56,7 @@ class V2DualContainerLinuxTests(unittest.TestCase):
         from instrument_benchmark.evaluator_image import EvaluatorImageBuilder
 
         cls.builder = EvaluatorImageBuilder(
-            assets_root=INSTRUMENT / "container"
+            assets_root=ROOT / "container"
         )
         cls.evaluator_image = cls.builder.build(
             ROOT,

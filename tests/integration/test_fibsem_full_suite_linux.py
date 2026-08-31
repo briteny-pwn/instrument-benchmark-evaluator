@@ -76,7 +76,7 @@ class FibsemFullSuiteLinuxTests(unittest.TestCase):
         sys.path.insert(0, str(INSTRUMENT / "src"))
         from instrument_benchmark.evaluator_image import EvaluatorImageBuilder
 
-        cls.builder = EvaluatorImageBuilder(assets_root=INSTRUMENT / "container")
+        cls.builder = EvaluatorImageBuilder(assets_root=ROOT / "container")
         cls.evaluator_image = cls.builder.build(
             ROOT,
             run_id="fibsem-full-linux",

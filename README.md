@@ -33,6 +33,12 @@ resource is the host Docker socket, used to create a fresh locked sibling
 candidate container for every world. Possession of that socket is effectively
 daemon authority, so only the trusted evaluator may receive it.
 
+This repository also owns the evaluator container build assets under
+`container/`: pinned Dockerfiles, Python wheelhouses, FIBSEM system packages,
+the Linux/amd64 Docker CLI and Buildx plugin, and their SHA-256 manifests.
+Instrument orchestration consumes this directory through
+`EVALUATOR_REPO_PATH`; the instrument repository does not carry a second copy.
+
 Candidate siblings never receive the Docker socket, evaluator package, hidden
 worlds, simulator YAML, oracle, journal, outer request/report, or Git metadata.
 Their only runtime connection is a run-scoped Unix gateway socket, plus their
@@ -76,7 +82,7 @@ prove the necessary order; diagnostic candidate JSON cannot establish a gate.
 Each step exports `scene.glb`, merged and component STL, SEM/FIB PNG, and
 `checkpoint.json`. The outer orchestrator copies validated evidence to
 `reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`.
-The top-level FIBSEM report is schema version 4 and is published at
+The top-level FIBSEM report is schema version 5 and is published at
 `reports/openfibsem/fibsem_liftout_v1.json`. Infrastructure failures
 are retryable; state/order/safety/security failures are candidate outcomes.
 Passing applies only to the pinned simulation and does not establish physical
@@ -115,4 +121,15 @@ The native Linux FIBSEM gates are separately opt-in:
 IAB_RUN_FIBSEM_DOCKER_TESTS=1 python -m pytest \
   tests/integration/test_fibsem_dual_container_linux.py \
   tests/integration/test_fibsem_full_suite_linux.py -q
+```
+
+Run the portable native-Linux acceptance driver with Python 3.11 and all
+repositories mounted at an identical absolute path visible to the host Docker
+daemon:
+
+```bash
+INSTANCES_REPO_PATH=/absolute/instrument-benchmark-instances \
+EVALUATOR_REPO_PATH=/absolute/instrument-benchmark-evaluator \
+  scripts/run_fibsem_linux_acceptance.sh \
+  /absolute/instrument-benchmark/configs/openfibsem/fibsem_liftout_v1.yaml
 ```

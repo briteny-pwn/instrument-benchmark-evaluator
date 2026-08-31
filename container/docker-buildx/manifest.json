@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "version": "0.30.1",
+  "platform": "linux/amd64",
+  "source": "https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/docker-buildx-plugin_0.30.1-1~ubuntu.22.04~jammy_amd64.deb",
+  "package": "docker-buildx-plugin=0.30.1-1~ubuntu.22.04~jammy",
+  "package_sha256": "c550ca2fcca56836605b58c64c6a89e198bb9f757d8978e4060a82227bda9c98",
+  "buildx_sha256": "a5a4fbd515283ebf05c450bc5b5fabaeeea3f7ac55c322ec310a016005df45a0"
+}

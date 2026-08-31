@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "version": "27.5.1",
+  "platform": "linux/amd64",
+  "source": "https://download.docker.com/linux/static/stable/x86_64/docker-27.5.1.tgz",
+  "archive_sha256": "4f798b3ee1e0140eab5bf30b0edc4e84f4cdb53255a429dc3bbae9524845d640",
+  "docker_sha256": "242c7a8de606afba2acada7c7af00d77f92c3601678b2f3a60911b49a892c722"
+}

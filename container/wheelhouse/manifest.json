@@ -1,0 +1,33 @@
+{
+  "files": {
+    "python_dotenv-1.2.3-py3-none-any.whl": {
+      "bytes": 22780,
+      "sha256": "904552145e8bfed22162c09dab1c2b9b54fefa7b23ba780f4f26ca0316b0f0d9"
+    },
+    "pyvisa-1.16.2-py3-none-any.whl": {
+      "bytes": 181413,
+      "sha256": "54f034adafd3e8d1858d57cdafec64e920444f4b84b31c9fd17487fbad0a197a"
+    },
+    "pyvisa_sim-0.7.1-py3-none-any.whl": {
+      "bytes": 35564,
+      "sha256": "0468326ea76977ba0da4d25c334a8d82ceb22d9b068e2c6894a8075ce7168322"
+    },
+    "pyyaml-6.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl": {
+      "bytes": 806638,
+      "sha256": "b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d"
+    },
+    "setuptools-80.9.0-py3-none-any.whl": {
+      "bytes": 1201486,
+      "sha256": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922"
+    },
+    "stringparser-0.7-py3-none-any.whl": {
+      "bytes": 7866,
+      "sha256": "44678ca6067a5c0cb4c45da38448e1971e2b6fb136b82bfb6a798bdbda7dd71f"
+    },
+    "typing_extensions-4.16.0-py3-none-any.whl": {
+      "bytes": 45571,
+      "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+    }
+  },
+  "schema_version": 1
+}
