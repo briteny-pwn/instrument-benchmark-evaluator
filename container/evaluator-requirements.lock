@@ -1,0 +1,12 @@
+PyYAML==6.0.3 \
+    --hash=sha256:b8bb0864c5a28024fac8a632c443c87c5aa6f215c0b126c449ae1a150412f31d
+PyVISA==1.16.2 \
+    --hash=sha256:54f034adafd3e8d1858d57cdafec64e920444f4b84b31c9fd17487fbad0a197a
+PyVISA-sim==0.7.1 \
+    --hash=sha256:0468326ea76977ba0da4d25c334a8d82ceb22d9b068e2c6894a8075ce7168322
+setuptools==80.9.0 \
+    --hash=sha256:062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922
+stringparser==0.7 \
+    --hash=sha256:44678ca6067a5c0cb4c45da38448e1971e2b6fb136b82bfb6a798bdbda7dd71f
+typing_extensions==4.16.0 \
+    --hash=sha256:481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8

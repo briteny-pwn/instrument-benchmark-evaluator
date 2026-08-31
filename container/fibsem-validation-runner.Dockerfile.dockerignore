@@ -1,0 +1,8 @@
+**
+!fibsem-validation-runner.Dockerfile
+!fibsem-validation-runner.Dockerfile.dockerignore
+!docker-cli/
+!docker-cli/docker
+!wheelhouse/
+!wheelhouse/pyyaml-6.0.3-*
+!wheelhouse/python_dotenv-1.2.3-py3-none-any.whl

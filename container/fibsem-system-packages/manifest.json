@@ -1,0 +1,65 @@
+{
+  "architecture": "amd64",
+  "distribution": "debian-bookworm",
+  "files": {
+    "gcc-12-base_12.2.0-14+deb12u1_amd64.deb": {
+      "bytes": 37596,
+      "package": "gcc-12-base",
+      "sha256": "1896a2aacf4ad681ff5eacc24a5b0ca4d5d9c9b9c9e4b6de5197bc1e116ea619",
+      "version": "12.2.0-14+deb12u1"
+    },
+    "libatomic1_12.2.0-14+deb12u1_amd64.deb": {
+      "bytes": 9376,
+      "package": "libatomic1",
+      "sha256": "fbd4e154a6b444229ea002cc209df099209c0adc09102e5fd21239a3d2b55e2d",
+      "version": "12.2.0-14+deb12u1"
+    },
+    "libbsd0_0.11.7-2_amd64.deb": {
+      "bytes": 117416,
+      "package": "libbsd0",
+      "sha256": "bb31cc8b40f962a85b2cec970f7f79cc704a1ae4bad24257a822055404b2c60b",
+      "version": "0.11.7-2"
+    },
+    "libedit2_3.1-20221030-2_amd64.deb": {
+      "bytes": 92992,
+      "package": "libedit2",
+      "sha256": "1cf14abf2716d3279db12d0657a5737cf70074a1e71d3bdf73206625e3c89ce6",
+      "version": "3.1-20221030-2"
+    },
+    "libicu72_72.1-3+deb12u1_amd64.deb": {
+      "bytes": 9376124,
+      "package": "libicu72",
+      "sha256": "f7f6f99c6d7b025914df2447fc93e11d22c44c0c8bdd8b6f36691c9e7ddcef88",
+      "version": "72.1-3+deb12u1"
+    },
+    "libllvm15_1%3a15.0.6-4+b1_amd64.deb": {
+      "bytes": 23115156,
+      "package": "libllvm15",
+      "sha256": "9f0751109ba89e65b1313a4f3e34a29977a0db6fa30ed475e2c6bd555fa9e866",
+      "version": "1:15.0.6-4+b1"
+    },
+    "libxml2_2.9.14+dfsg-1.3~deb12u6_amd64.deb": {
+      "bytes": 688760,
+      "package": "libxml2",
+      "sha256": "4460e39dda10a815881374217cde08474747cfa018358cd8612c14b390eff53b",
+      "version": "2.9.14+dfsg-1.3~deb12u6"
+    },
+    "libz3-4_4.8.12-3.1_amd64.deb": {
+      "bytes": 7216172,
+      "package": "libz3-4",
+      "sha256": "6221ca25ad5abcfbe1965801029d85a88b4775320384b4b716de8fab7a4d2f7a",
+      "version": "4.8.12-3.1"
+    }
+  },
+  "packages": {
+    "gcc-12-base": "12.2.0-14+deb12u1",
+    "libatomic1": "12.2.0-14+deb12u1",
+    "libbsd0": "0.11.7-2",
+    "libedit2": "3.1-20221030-2",
+    "libicu72": "72.1-3+deb12u1",
+    "libllvm15": "1:15.0.6-4+b1",
+    "libxml2": "2.9.14+dfsg-1.3~deb12u6",
+    "libz3-4": "4.8.12-3.1"
+  },
+  "schema_version": 1
+}
