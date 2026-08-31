@@ -39,8 +39,18 @@ def test_evaluator_repository_owns_container_vendoring_tools() -> None:
 def test_evaluator_ci_runs_owned_assets_and_acceptance_tests_with_instrument() -> None:
     workflow = (ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
 
-    assert "python -m pip install -e . -e instrument pytest" in workflow
+    assert "path: evaluator" in workflow
+    assert "repository: briteny-pwn/instrument-benchmark-instances" in workflow
+    assert "path: instance" in workflow
+    assert "path: instrument" in workflow
+    assert "python -m pip install -e . -e ../instrument pytest" in workflow
     assert "python -m pytest tests sources -q" in " ".join(workflow.split())
+    assert (
+        "instance/sources/pyvisa/pyvisa_dut_validation_v1" in workflow
+    )
+    assert (
+        "instance/sources/pyvisa/pyvisa_dut_validation_v2" in workflow
+    )
     assert "evaluators/pyvisa_dut_validation" not in workflow
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 from unittest import mock
 
@@ -97,6 +98,13 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert 'git -C "$instances_repo_path" rev-parse --show-toplevel' in text
     assert 'git -C "$evaluator_repo_path" rev-parse --show-toplevel' in text
     assert 'git -C "$openfibsem_repo_path" rev-parse --show-toplevel' in text
+    assert (
+        'git -C "$repository_path" rev-parse --path-format=absolute '
+        '--git-common-dir' in text
+    )
+    assert (
+        'src="$git_metadata_path",dst="$git_metadata_path",readonly' in text
+    )
     assert 'src="$openfibsem_repo_path",dst="$openfibsem_repo_path",readonly' in text
     assert "$checkout_parent/fibsem" not in text
     assert 'python scripts/validate_fibsem_benchmark.py' not in text
@@ -106,6 +114,51 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
         in normalized
     )
     assert "config_arg=$1" in text
+
+
+def test_linked_worktree_git_metadata_is_outside_the_checkout_and_mounted(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    worktree = tmp_path / "linked-worktree"
+    repository.mkdir()
+    subprocess.run(["git", "init", "-b", "main"], cwd=repository, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@example.invalid"],
+        cwd=repository,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Test"], cwd=repository, check=True
+    )
+    (repository / "tracked.txt").write_text("tracked\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=repository, check=True)
+    subprocess.run(["git", "commit", "-m", "initial"], cwd=repository, check=True)
+    subprocess.run(
+        ["git", "worktree", "add", "-b", "linked", str(worktree)],
+        cwd=repository,
+        check=True,
+    )
+
+    common_dir = Path(
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(worktree),
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    ).resolve()
+
+    assert not common_dir.is_relative_to(worktree.resolve())
+    text = RUNNER.read_text(encoding="utf-8")
+    assert '--mount type=bind,src="$git_metadata_path"' in text
 
 
 def test_fibsem_validator_defaults_to_source_grouped_config_and_rejects_cross_source(
@@ -177,3 +230,4 @@ def test_readme_publishes_the_portable_native_linux_entrypoint() -> None:
     assert "scripts/run_fibsem_linux_acceptance.sh" in text
     assert "Python 3.11" in text
     assert "identical absolute path" in text
+    assert "FIBSEM report is schema version 5" in text

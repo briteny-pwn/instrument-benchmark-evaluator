@@ -9,6 +9,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          path: evaluator
+      - uses: actions/checkout@v4
+        with:
+          repository: briteny-pwn/instrument-benchmark-instances
+          path: instance
       - uses: actions/checkout@v4
         with:
           repository: briteny-pwn/instrument-benchmark
@@ -16,8 +22,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install -e . -e instrument pytest
-      - run: >-
+      - working-directory: evaluator
+        run: python -m pip install -e . -e ../instrument pytest
+      - working-directory: evaluator
+        run: >-
           PYTHONPATH=vendor/pyvisa-sim-iab:.
           python -m pytest tests sources -q
 
@@ -47,8 +55,8 @@ jobs:
         env:
           IAB_RUN_DOCKER_TESTS: "1"
           IAB_CONTAINER_OWNER: evaluator-${{ github.run_id }}-${{ github.run_attempt }}
-          IAB_INSTANCE_ROOT: ${{ github.workspace }}/instance/pyvisa_dut_validation_v1
-          IAB_INSTANCE_V2_ROOT: ${{ github.workspace }}/instance/pyvisa_dut_validation_v2
+          IAB_INSTANCE_ROOT: ${{ github.workspace }}/instance/sources/pyvisa/pyvisa_dut_validation_v1
+          IAB_INSTANCE_V2_ROOT: ${{ github.workspace }}/instance/sources/pyvisa/pyvisa_dut_validation_v2
           IAB_INSTRUMENT_ROOT: ${{ github.workspace }}/instrument
           PYTHONPATH: vendor/pyvisa-sim-iab:.
         run: |

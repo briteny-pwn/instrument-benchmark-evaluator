@@ -85,6 +85,38 @@ for git_library in $git_libraries; do
         --mount type=bind,src="$git_library",dst="$git_library",readonly
 done
 
+mounted_git_metadata_paths=
+while IFS= read -r git_metadata_path; do
+    test -n "$git_metadata_path" || continue
+    case "
+$mounted_git_metadata_paths
+" in
+        *"
+$git_metadata_path
+"*) continue ;;
+    esac
+    mounted_git_metadata_paths="${mounted_git_metadata_paths}
+${git_metadata_path}"
+    set -- "$@" \
+        --mount type=bind,src="$git_metadata_path",dst="$git_metadata_path",readonly
+done <<EOF
+$(
+    for repository_path in \
+        "$instrument_root" \
+        "$instances_repo_path" \
+        "$evaluator_repo_path" \
+        "$openfibsem_repo_path"
+    do
+        git_metadata_path=$(git -C "$repository_path" rev-parse --path-format=absolute --git-common-dir)
+        git_metadata_path=$(CDPATH= cd -- "$git_metadata_path" && pwd -P)
+        case "$git_metadata_path" in
+            "$repository_path"|"$repository_path"/*) ;;
+            *) printf '%s\n' "$git_metadata_path" ;;
+        esac
+    done
+)
+EOF
+
 docker run --rm \
     --platform linux/amd64 \
     --network=none \

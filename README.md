@@ -82,7 +82,7 @@ prove the necessary order; diagnostic candidate JSON cannot establish a gate.
 Each step exports `scene.glb`, merged and component STL, SEM/FIB PNG, and
 `checkpoint.json`. The outer orchestrator copies validated evidence to
 `reports/openfibsem/fibsem_liftout_v1.artifacts/{world_id}/{step_id}/`.
-The top-level FIBSEM report is schema version 4 and is published at
+The top-level FIBSEM report is schema version 5 and is published at
 `reports/openfibsem/fibsem_liftout_v1.json`. Infrastructure failures
 are retryable; state/order/safety/security failures are candidate outcomes.
 Passing applies only to the pinned simulation and does not establish physical
