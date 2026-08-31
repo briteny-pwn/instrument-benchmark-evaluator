@@ -81,6 +81,8 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert "src=/var/run/docker.sock,dst=/var/run/docker.sock" in text
     assert 'src=/tmp,dst=/tmp' in text
     assert "read_repository_path_values" in text
+    assert "openfibsem_checkout" in text
+    assert '--env "IAB_RUN_CONFIG=$config_path"' in text
     assert 'src="$instrument_root",dst="$instrument_root"' in text
     assert 'src="$instances_repo_path",dst="$instances_repo_path"' in text
     assert 'src="$evaluator_repo_path",dst="$evaluator_repo_path"' in text
@@ -94,7 +96,9 @@ def test_native_linux_runner_preserves_daemon_visible_paths_and_identity() -> No
     assert 'test -d "$checkout_parent/fibsem/.git"' not in text
     assert 'git -C "$instances_repo_path" rev-parse --show-toplevel' in text
     assert 'git -C "$evaluator_repo_path" rev-parse --show-toplevel' in text
-    assert 'git -C "$checkout_parent/fibsem" rev-parse --show-toplevel' in text
+    assert 'git -C "$openfibsem_repo_path" rev-parse --show-toplevel' in text
+    assert 'src="$openfibsem_repo_path",dst="$openfibsem_repo_path",readonly' in text
+    assert "$checkout_parent/fibsem" not in text
     assert 'python scripts/validate_fibsem_benchmark.py' not in text
     assert (
         '"$evaluator_root/scripts/validate_fibsem_benchmark.py" '
